@@ -8,6 +8,7 @@ import Login from './pages/Login';
 import Signup from './pages/Signup';
 import AdminPage from './pages/AdminPage';
 import ProtectedRoute from './components/ProtectedRoute';
+import ProductPage from './pages/ProductPage';
 
 function App() {
   return (
@@ -15,14 +16,17 @@ function App() {
       <Routes>
         <Route path="/" element={<Layout />} >
           {/* <ProtectedRoute index element={<Home />} /> */}
+          <Route path="cart" element={<Cart />} />
+          <Route path="wishlist" element={<Wishlist />} />
+          <Route path='product/:id' element={<ProductPage />} />
             <Route element={<ProtectedRoute />}>
               <Route path="signup" element={<Signup />} />
               <Route path='login' element={<Login />} />
               <Route index element={<Home />} />
               <Route path="admin" element={<AdminPage />} />
               <Route path="books" element={<BookList />} />
-              <Route path="wishlist" element={<Wishlist />} />
-              <Route path="cart" element={<Cart />} />
+             {/*  <Route path="wishlist" element={<Wishlist />} />
+              <Route path="cart" element={<Cart />} /> */}
           </Route>
         </Route>
         {/* Add more routes as needed */}
