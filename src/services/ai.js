@@ -4,10 +4,11 @@ import axios from 'axios';
 const api = axios.create({
   //baseURL: 'http://192.168.10.6:8080',
   //baseURL: 'http://192.168.189.252:8080',
-  baseURL: 'http://192.168.1.4:8080',
+  //baseURL: 'http://192.168.1.4:5000',
+  baseURL: 'http://localhost:5000',
 });
 
-api.interceptors.request.use((config) => {
+ api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;

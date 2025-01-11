@@ -26,7 +26,7 @@ const Header = () => {
       </div>
       <FaSearchComponent onSearch={onSearch} />
       <div className="flex items-center space-x-4">
-        <Link to="/cart" className="flex items-center">
+        <Link to="/cart/f7cbb32b-7069-4ac6-9eb3-2ac650f74d50" className="flex items-center">
           <FaShoppingCart className="text-2xl" />
           <span className="ml-2">Cart</span>
         </Link>
@@ -34,7 +34,10 @@ const Header = () => {
           <FaHeart className="text-2xl" />
           <span className="ml-2">Wishlist</span>
         </Link>
-        <FaUserComponent />
+        <Link to="/profile" className="flex items-center">
+          <FaUserComponent />
+          <span className="ml-2">Sign in</span>
+        </Link>
       </div>
     </header>
     );

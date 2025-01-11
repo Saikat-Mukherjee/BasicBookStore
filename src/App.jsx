@@ -9,6 +9,7 @@ import Signup from './pages/Signup';
 import AdminPage from './pages/AdminPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import ProductPage from './pages/ProductPage';
+import Profile from './pages/profile';
 
 function App() {
   return (
@@ -16,8 +17,9 @@ function App() {
       <Routes>
         <Route path="/" element={<Layout />} >
           {/* <ProtectedRoute index element={<Home />} /> */}
-          <Route path="cart" element={<Cart />} />
+          <Route path="cart/:userId" element={<Cart />} />
           <Route path="wishlist" element={<Wishlist />} />
+          <Route path="profile" element={<Profile />} />
           <Route path='product/:id' element={<ProductPage />} />
             <Route element={<ProtectedRoute />}>
               <Route path="signup" element={<Signup />} />
