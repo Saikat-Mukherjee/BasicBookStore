@@ -25,12 +25,52 @@ const ChatBot = () => {
     scrollToBottom();
   }, [messages]);
 
-  const sendMessageToBot = async (message) => {
-    const response = await api.post(`/chat`, { message: message });
-    return response.data.response;
+  const sendMessageToBot_old = async (message) => {
+    try {
+      const response = await api.post(`/chat`, { message: message });
+      return response.data.response;
+    } catch (error) {
+      console.error(error);
+      return 'Sorry, I encountered an error. Please try again.';
+    }
   };
 
-  const handleSend = async () => {
+  const sendMessageToBot = async (message,onChunk) => {
+    try {
+      //const response = await api.post(`/stream-chat`, { message: message });
+      const response = await fetch(`http://localhost:5000/stream-chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Network error");
+      }
+      
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+      let done = false;
+      let result = "";
+      
+      while (!done) {
+        const { value, done: doneReading } = await reader.read();
+        done = doneReading;
+        const chunk = decoder.decode(value);
+        result += chunk;
+        // Callback to update UI for every received chunk
+        onChunk && onChunk(chunk);
+      }
+      
+      return result;
+    } catch (error) {
+      console.error(error);
+      return "Sorry, I encountered an error. Please try again.";
+    }
+      
+  };
+
+  const handleSend_old = async () => {
     if (!input.trim()) return;
 
     const userMessage = {
@@ -55,6 +95,44 @@ const ChatBot = () => {
     }, 1000);
 
     setInput('');
+  };
+
+  const handleSend = async () => {
+    if (!input.trim()) return;
+  
+    const userMessage = {
+      text: input,
+      isBot: false,
+      timestamp: new Date(),
+    };
+  
+    setMessages((prev) => [...prev, userMessage]);
+  
+    // Insert a placeholder bot message
+    const botMessage = {
+      text: "",
+      isBot: true,
+      timestamp: new Date(),
+    };
+    setMessages((prev) => [...prev, botMessage]);
+  
+    setIsTyping(true);
+    
+    // Function to update the bot message as chunks come in
+    const onChunk = (chunk) => {
+      setMessages((prev) => {
+        // update the last message with the new chunk
+        const updated = [...prev];
+        updated[updated.length - 1].text += chunk;
+        return updated;
+      });
+    };
+  
+    // Receive the complete response (optional since you're updating on each chunk)
+    await sendMessageToBot(input, onChunk);
+    
+    setIsTyping(false);
+    setInput("");
   };
 
   const TypingIndicator = () => (

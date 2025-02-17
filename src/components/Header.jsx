@@ -1,11 +1,40 @@
-import React from 'react';
+import React,{useEffect, useContext} from 'react';
 import { Link } from 'react-router-dom';
 import { FaSearch, FaUser,FaShoppingCart, FaHeart } from 'react-icons/fa';
 import FaSearchComponent from './FaSearchComponent';
 import FaUserComponent from './FaUserComponent';
 import api from '../services/api';
+import { UserContext } from '../App';
+
+
 
 const Header = () => {
+    const {user,setUser} = useContext(UserContext);
+
+      useEffect(() => {
+        async function getUser() {
+          try {
+            let response = await api.get('/users/profile');
+            console.log(response);
+            if(response.status === 401){
+              setUser(null);
+              return;
+            }
+            else if(typeof(response.data) === 'string'){
+              setUser(null);
+              return;
+            }
+            let profile = response.data
+            setUser(profile);
+          } catch (error) {
+            console.error(error);
+          }
+
+        }
+
+        getUser();
+
+    }, []);
 
     const onSearch = (results) => {
         console.log(results);
@@ -36,7 +65,8 @@ const Header = () => {
         </Link>
         <Link to="/profile" className="flex items-center">
           <FaUserComponent />
-          <span className="ml-2">Sign in</span>
+          {user ? (<span className="ml-2">{user.username}</span>)
+            : (<span className="ml-2">Sign in</span>) }
         </Link>
       </div>
     </header>

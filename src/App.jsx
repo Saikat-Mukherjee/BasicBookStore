@@ -10,29 +10,37 @@ import AdminPage from './pages/AdminPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import ProductPage from './pages/ProductPage';
 import Profile from './pages/profile';
+import { createContext, useContext, useState } from 'react';
+
+export const UserContext = createContext();
+
 
 function App() {
+  const [user, setUser] = useState(null);
   return (
     <Router>
-      <Routes>
-        <Route path="/" element={<Layout />} >
-          {/* <ProtectedRoute index element={<Home />} /> */}
-          <Route path="cart/:userId" element={<Cart />} />
-          <Route path="wishlist" element={<Wishlist />} />
-          <Route path="profile" element={<Profile />} />
-          <Route path='product/:id' element={<ProductPage />} />
-            <Route element={<ProtectedRoute />}>
-              <Route path="signup" element={<Signup />} />
-              <Route path='login' element={<Login />} />
-              <Route index element={<Home />} />
-              <Route path="admin" element={<AdminPage />} />
-              <Route path="books" element={<BookList />} />
-             {/*  <Route path="wishlist" element={<Wishlist />} />
-              <Route path="cart" element={<Cart />} /> */}
+      <UserContext.Provider value={{user, setUser}}>
+        <Routes>  
+          <Route path="/" element={<Layout />} >
+            {/* <ProtectedRoute index element={<Home />} /> */}
+            <Route path="cart/:userId" element={<Cart />} />
+            <Route path="wishlist" element={<Wishlist />} />
+            <Route path="profile" element={<Profile />} />
+            <Route path='product/:id' element={<ProductPage />} />
+              <Route element={<ProtectedRoute />}>
+                <Route path="signup" element={<Signup />} />
+                <Route path='login' element={<Login />} />
+                <Route index element={<Home />} />
+                <Route path="admin" element={<AdminPage />} />
+                <Route path="books" element={<BookList />} />
+              {/*  <Route path="wishlist" element={<Wishlist />} />
+                <Route path="cart" element={<Cart />} /> */}
+            </Route>
           </Route>
-        </Route>
+        
         {/* Add more routes as needed */}
       </Routes>
+      </UserContext.Provider>
     </Router>
   );
 }
