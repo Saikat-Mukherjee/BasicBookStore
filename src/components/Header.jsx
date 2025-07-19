@@ -10,6 +10,7 @@ import { UserContext } from '../App';
 
 const Header = () => {
     const {user,setUser} = useContext(UserContext);
+    console.log(user);
 
       useEffect(() => {
         async function getUser() {

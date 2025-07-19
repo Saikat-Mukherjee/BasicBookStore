@@ -43,7 +43,7 @@ const ProductPage = () => {
             <h2 className="text-xl text-gray-700">by {book.author}</h2>
             <img className="w-full h-auto rounded" src={product.imageUrl} alt={product.title} />
             <p className="text-gray-600">{book.description}</p>
-            <p className="text-lg font-semibold">Price: {product.book_price}</p>
+            <p className="text-lg font-semibold">Price: {book.price}</p>
         <div className="flex space-x-4">
             <button className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-700">Add to Cart</button>
             <button className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-700">Add to Wishlist</button>

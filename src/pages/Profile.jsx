@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { FaBook, FaBookOpen, FaMapMarkerAlt, FaBox, FaUser } from 'react-icons/fa';
+import api from '../services/api';
 
 function Profile() {
   const [activeTab, setActiveTab] = useState('profile');
@@ -60,6 +61,31 @@ function Profile() {
     setDraftUser(user);
     setEditMode(false);
   };
+
+  useEffect(() => {
+      // This effect can be used to fetch user data from an API if needed
+    // For now, we are using static data
+    async function fetchUserProfile() {
+      try {  
+        let userProfile = await api.get('/users/profile');
+        console.log('User Profile:', userProfile.data);
+        //setUser(userProfile.data);
+        //debugger;
+        const requiredProfile = {
+          name: userProfile.data.username || 'John Doe',
+          email: userProfile.data.email || '',
+          phone: '123-456-7890',
+          memberSince: '2023',
+          readingPreferences: ['Fiction', 'Science', 'History'],
+          avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=150&h=150'
+        }
+        setUser(requiredProfile);
+      } catch (error) {
+        console.error('Error fetching user profile:', error);
+      }
+    }
+    fetchUserProfile();
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50">

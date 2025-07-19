@@ -18,11 +18,13 @@ const Cart = () => {
     useEffect(() => {
       const fetchCart = async (userId) => {
         try {
-          const response = await api.get(`/cart/all?userId=${userId}`);
+          //const response = await api.get(`/cart/all?userId=${userId}`);
+          const response = await api.get(`/cart/all`);
           const data = response.data;
           console.log(data);
 
-          setCartItems(data[0].bookList);
+          //setCartItems(data[0].bookList);
+          setCartItems(data[0].items);
           console.log(cartItems.length);
         } catch (error) {
           console.error('Error fetching cart:', error);
