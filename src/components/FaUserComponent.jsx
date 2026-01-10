@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { FaUser, FaCog, FaSignOutAlt, FaBox, FaHeart, FaQuestionCircle, FaChevronDown } from 'react-icons/fa';
+import { FaUser, FaCog, FaSignOutAlt, FaBox, FaHeart, FaQuestionCircle, FaChevronDown, FaUserShield } from 'react-icons/fa';
 import { logoutUser } from '../services/auth';
 
 const FaUserComponent = ({ user, setUser }) => {
@@ -85,6 +85,16 @@ const FaUserComponent = ({ user, setUser }) => {
                     </div>
 
                     <div className="border-t border-gray-100 py-1">
+                        <a 
+                            href={`http://localhost:5174/admin/auth-receiver?token=${localStorage.getItem('token')}`}
+                            className="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={() => setDropdownOpen(false)}
+                        >
+                            <FaUserShield className="mr-3 text-gray-400" />
+                            Admin Portal
+                        </a>
                         <Link 
                             to="/settings" 
                             className="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
