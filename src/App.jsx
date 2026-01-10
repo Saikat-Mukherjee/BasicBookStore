@@ -3,7 +3,7 @@ import Home from './pages/Home';
 import BookList from './components/BookList';
 import Wishlist from './pages/Wishlist';
 import Cart from './pages/Cart';
-import Layout from './layout';
+import Layout from './Layout';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import AdminPage from './pages/AdminPage';
