@@ -9,7 +9,7 @@ import Signup from './pages/Signup';
 import AdminPage from './pages/AdminPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import ProductPage from './pages/ProductPage';
-import Profile from './pages/profile';
+import Profile from './pages/Profile';
 import Orders from './pages/Orders';
 import Settings from './pages/Settings';
 import HelpSupport from './pages/HelpSupport';
