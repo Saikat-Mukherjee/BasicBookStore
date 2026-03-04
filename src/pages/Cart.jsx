@@ -5,6 +5,9 @@ const Cart = () => {
   const { userId } = useParams();
   console.log("User Id is =>",userId);
   const [cartItems, setCartItems] = useState([]);
+  const[subtotal, setSubtotal] = useState(0);
+  const [shippingCost, setShippingCost] = useState(0);
+  const [total, setTotal] = useState(0);
     const getTotalPrice = () => {
         return cartItems.reduce((total, item) => total + item.price * item.quantity, 0);
     };
@@ -24,7 +27,10 @@ const Cart = () => {
           console.log(data);
 
           //setCartItems(data[0].bookList);
-          setCartItems(data[0].items);
+          setCartItems(data.items);
+          setSubtotal(data.subtotal);
+          setShippingCost(data.shippingAmount);
+          setTotal(data.totalAmount);
           console.log(cartItems.length);
         } catch (error) {
           console.error('Error fetching cart:', error);
@@ -37,16 +43,43 @@ const Cart = () => {
       setCart(cartItems.filter(item => item.bookId !== itemId));
     };
 
-    const onIncreaseQuantity = (itemId) => {
-      setCartItems(cartItems.map(item => 
+    const onIncreaseQuantity = async (itemId) => {
+         try {
+          //const response = await api.get(`/cart/all?userId=${userId}`);
+          const response = await api.post(`/cart/add`,{bookId: itemId, quantity: 1});
+          const data = response.data;
+          console.log(data);
+
+          //setCartItems(data[0].bookList);
+          setCartItems(data.items);
+          setSubtotal(data.subtotal);
+          setShippingCost(data.shippingAmount);
+          setTotal(data.totalAmount);
+          console.log(cartItems.length);
+        } catch (error) {
+          console.error('Error fetching cart:', error);
+        }
+      /* setCartItems(cartItems.map(item => 
         item.bookId === itemId ? { ...item, quantity: item.quantity + 1 } : item
-      ));
+      )); */
     };
   
-    const onDecreaseQuantity = (itemId) => {
-      setCartItems(cartItems.map(item => 
+    const onDecreaseQuantity = async (itemId) => {
+      /* setCartItems(cartItems.map(item => 
         item.bookId === itemId && item.quantity > 1 ? { ...item, quantity: item.quantity - 1 } : item
-      ));
+      )); */
+        try {
+            const response = await api.delete(`/cart/remove?bookId=${itemId}`);
+            const data = response.data;
+            console.log(data);
+            setCartItems(data.items);
+            setSubtotal(data.subtotal);
+            setShippingCost(data.shippingAmount);
+            setTotal(data.totalAmount);
+            console.log(cartItems.length);
+        } catch (error) {
+            console.error('Error fetching cart:', error);
+        }
     };
     console.log(cartItems);
 
@@ -77,7 +110,7 @@ const Cart = () => {
                                     </div>
                                     <div>
                                         <h3 className="text-lg font-semibold text-gray-900">{item.title}</h3>
-                                        <p className="text-blue-600 font-bold">${item.price}</p>
+                                        <p className="text-blue-600 font-bold">${item.unitPrice}</p>
                                     </div>
                                 </div>
                                 <div className="flex items-center space-x-6">
@@ -113,16 +146,16 @@ const Cart = () => {
                             <div className="space-y-3 mb-6">
                                 <div className="flex justify-between text-gray-600">
                                     <span>Subtotal</span>
-                                    <span>${getTotalPrice().toFixed(2)}</span>
+                                    <span>${subtotal.toFixed(2)}</span>
                                 </div>
                                 <div className="flex justify-between text-gray-600">
                                     <span>Shipping</span>
-                                    <span>Free</span>
+                                    <span>${shippingCost.toFixed(2)}</span>
                                 </div>
                                 <div className="border-t border-gray-200 pt-3 mt-3">
                                     <div className="flex justify-between text-xl font-bold text-gray-900">
                                         <span>Total</span>
-                                        <span>${getTotalPrice().toFixed(2)}</span>
+                                        <span>${total.toFixed(2)}</span>
                                     </div>
                                 </div>
                             </div>

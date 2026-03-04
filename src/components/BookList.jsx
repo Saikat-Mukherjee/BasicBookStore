@@ -38,7 +38,7 @@ function BookList({ books }) {
                                     <p className="text-gray-500 text-sm line-clamp-3">{book.description}</p>
                                 </div>
                                 <Link 
-                                    to={`/product/${book.isbn}`} 
+                                    to={`/product/${book.id}`} 
                                     className="block w-full text-center bg-gray-900 text-white py-2.5 rounded-lg font-medium hover:bg-blue-600 transition-colors"
                                 >
                                     View Details
