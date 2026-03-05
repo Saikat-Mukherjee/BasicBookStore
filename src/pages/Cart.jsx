@@ -1,8 +1,9 @@
 import React,{useEffect, useState} from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 const Cart = () => {
   const { userId } = useParams();
+  const navigate = useNavigate();
   console.log("User Id is =>",userId);
   const [cartItems, setCartItems] = useState([]);
   const[subtotal, setSubtotal] = useState(0);
@@ -39,8 +40,20 @@ const Cart = () => {
       fetchCart(userId);
     }, [userId]);
 
-    const onRemove = (itemId) => {
-      setCart(cartItems.filter(item => item.bookId !== itemId));
+    const onRemove = async (itemId) => {
+        try{
+            const response = await api.delete(`/cart/remove/item?bookId=${itemId}`);
+            const data = response.data;
+            console.log(data);
+            setCartItems(data.items);
+            setSubtotal(data.subtotal);
+            setShippingCost(data.shippingAmount);
+            setTotal(data.totalAmount);
+        }
+        catch(error) {
+            console.error('Error fetching cart:', error);
+        }
+      //setCart(cartItems.filter(item => item.bookId !== itemId));
     };
 
     const onIncreaseQuantity = async (itemId) => {
@@ -159,7 +172,10 @@ const Cart = () => {
                                     </div>
                                 </div>
                             </div>
-                            <button className="w-full bg-blue-600 text-white py-3.5 rounded-lg hover:bg-blue-700 transition-colors font-semibold shadow-md hover:shadow-lg transform hover:-translate-y-0.5">
+                            <button
+                              onClick={() => navigate('/checkout')}
+                              className="w-full bg-blue-600 text-white py-3.5 rounded-lg hover:bg-blue-700 transition-colors font-semibold shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
+                            >
                                 Proceed to Checkout
                             </button>
                         </div>

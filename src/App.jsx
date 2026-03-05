@@ -11,6 +11,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import ProductPage from './pages/ProductPage';
 import Profile from './pages/Profile';
 import Orders from './pages/Orders';
+import Checkout from './pages/Checkout';
 import Settings from './pages/Settings';
 import HelpSupport from './pages/HelpSupport';
 import { createContext, useContext, useState } from 'react';
@@ -36,6 +37,7 @@ function App() {
                 <Route path="login" element={<Login />} />
                 <Route path="signup" element={<Signup />} />
                 <Route path="cart/:userId" element={<Cart />} />
+                <Route path="checkout" element={<Checkout />} />
                 <Route path="wishlist" element={<Wishlist />} />
                 <Route path="profile" element={<Profile />} />
                 <Route path="orders" element={<Orders />} />
