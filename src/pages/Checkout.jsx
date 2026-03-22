@@ -4,6 +4,8 @@ import {
   FaMapMarkerAlt, FaHome, FaBriefcase, FaCreditCard,
   FaLock, FaCheck, FaChevronRight, FaChevronLeft,
   FaShoppingBag, FaTruck, FaMoneyBillWave,
+  FaPaypal, FaWallet, FaUniversity, FaMobileAlt,
+  FaBitcoin, FaGift,
 } from 'react-icons/fa';
 import api from '../services/api';
 
@@ -31,6 +33,33 @@ const CARD_BRANDS = {
   amex:       { label: 'Amex',       color: '#007BC1' },
   discover:   { label: 'Discover',   color: '#FF6600' },
 };
+
+const PAY_METHODS = [
+  { id: 'credit_card',    label: 'Credit Card',     icon: <FaCreditCard />,    color: 'text-blue-600' },
+  { id: 'debit_card',     label: 'Debit Card',       icon: <FaCreditCard />,    color: 'text-indigo-600' },
+  { id: 'upi',            label: 'UPI',              icon: <FaMobileAlt />,     color: 'text-green-600' },
+  { id: 'paypal',         label: 'PayPal',           icon: <FaPaypal />,        color: 'text-blue-500' },
+  { id: 'net_banking',    label: 'Net Banking',      icon: <FaUniversity />,    color: 'text-purple-600' },
+  { id: 'digital_wallet', label: 'Digital Wallet',   icon: <FaWallet />,        color: 'text-teal-600' },
+  { id: 'bank_transfer',  label: 'Bank Transfer',    icon: <FaUniversity />,    color: 'text-orange-600' },
+  { id: 'gift_card',      label: 'Gift Card',        icon: <FaGift />,          color: 'text-pink-600' },
+  { id: 'cryptocurrency', label: 'Crypto',           icon: <FaBitcoin />,       color: 'text-yellow-600' },
+  { id: 'cod',            label: 'Cash on Delivery', icon: <FaMoneyBillWave />, color: 'text-amber-600' },
+];
+
+const BANKS = [
+  'State Bank of India', 'HDFC Bank', 'ICICI Bank', 'Axis Bank',
+  'Kotak Mahindra Bank', 'Punjab National Bank', 'Bank of Baroda',
+  'Yes Bank', 'IndusInd Bank', 'Canara Bank', 'Union Bank of India',
+];
+
+const CRYPTO_COINS = [
+  { id: 'bitcoin',  label: 'Bitcoin (BTC)' },
+  { id: 'ethereum', label: 'Ethereum (ETH)' },
+  { id: 'usdt',     label: 'Tether (USDT)' },
+  { id: 'bnb',      label: 'BNB' },
+  { id: 'usdc',     label: 'USD Coin (USDC)' },
+];
 
 /* ─────────────────────────────────────────
    Helpers
@@ -370,9 +399,17 @@ export default function Checkout() {
   const [shippingMethod,   setShippingMethod]   = useState('standard');
 
   /* ── payment ── */
-  const [payMethod, setPayMethod] = useState('card');   // 'card' | 'cod'
-  const [card, setCard] = useState({ number: '', name: '', expiry: '', cvv: '' });
+  const [payMethod, setPayMethod] = useState('credit_card');
+  const [payDetails, setPayDetails] = useState({
+    // card fields (credit & debit)
+    number: '', name: '', expiry: '', cvv: '',
+    // other methods
+    upiId: '', paypalEmail: '', bankName: '',
+    walletId: '', accountNumber: '', routingNumber: '',
+    cryptoCoin: 'bitcoin', giftCardCode: '',
+  });
   const [cvvFocused, setCvvFocused] = useState(false);
+  const setPay = (field, val) => setPayDetails(p => ({ ...p, [field]: val }));
 
   /* ── order ── */
   const [placing,  setPlacing]  = useState(false);
@@ -433,12 +470,31 @@ export default function Checkout() {
         if (Object.keys(errs).length) errs.address = 'Please fill in all required address fields.';
       }
     }
-    if (s === 2 && payMethod === 'card') {
-      const num = card.number.replace(/\s/g, '');
-      if (num.length < 13)              errs.cardNumber = 'Enter a valid card number.';
-      if (!card.name.trim())            errs.cardName   = 'Enter the name on your card.';
-      if (card.expiry.length < 5)       errs.expiry     = 'Enter a valid expiry date.';
-      if (card.cvv.length < 3)          errs.cvv        = 'Enter a valid CVV.';
+    if (s === 2) {
+      const isCard = payMethod === 'credit_card' || payMethod === 'debit_card';
+      if (isCard) {
+        const num = payDetails.number.replace(/\s/g, '');
+        if (num.length < 13)                 errs.cardNumber = 'Enter a valid card number.';
+        if (!payDetails.name.trim())         errs.cardName   = 'Enter the name on your card.';
+        if (payDetails.expiry.length < 5)    errs.expiry     = 'Enter a valid expiry date.';
+        if (payDetails.cvv.length < 3)       errs.cvv        = 'Enter a valid CVV.';
+      } else if (payMethod === 'upi') {
+        if (!payDetails.upiId.trim() || !payDetails.upiId.includes('@'))
+          errs.upiId = 'Enter a valid UPI ID (e.g. name@upi).';
+      } else if (payMethod === 'paypal') {
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payDetails.paypalEmail.trim()))
+          errs.paypalEmail = 'Enter a valid PayPal email address.';
+      } else if (payMethod === 'net_banking') {
+        if (!payDetails.bankName) errs.bankName = 'Please select your bank.';
+      } else if (payMethod === 'digital_wallet') {
+        if (!payDetails.walletId.trim()) errs.walletId = 'Enter your wallet phone number or email.';
+      } else if (payMethod === 'bank_transfer') {
+        if (!payDetails.accountNumber.trim()) errs.accountNumber = 'Enter your account number.';
+        if (!payDetails.routingNumber.trim()) errs.routingNumber = 'Enter the routing / IFSC code.';
+      } else if (payMethod === 'gift_card') {
+        if (!payDetails.giftCardCode.trim()) errs.giftCardCode = 'Enter a valid gift card code.';
+      }
+      // cryptocurrency and cod require no extra input
     }
     setErrors(errs);
     return Object.keys(errs).length === 0;
@@ -471,13 +527,22 @@ export default function Checkout() {
     setPlacing(true);
     try {
       const addr = await resolveAddress();
+      const isCard = payMethod === 'credit_card' || payMethod === 'debit_card';
       const payload = {
-        addressId:       addr.id,
-        shippingMethod:  shippingMethod,
-        paymentMethod:   payMethod,
-        ...(payMethod === 'card' && {
-          cardLast4: card.number.replace(/\s/g, '').slice(-4),
+        addressId:      addr.id,
+        shippingMethod: shippingMethod,
+        paymentMethod:  payMethod.toUpperCase(),
+        ...(isCard && { cardLast4: payDetails.number.replace(/\s/g, '').slice(-4) }),
+        ...(payMethod === 'upi'            && { upiId:         payDetails.upiId }),
+        ...(payMethod === 'paypal'         && { paypalEmail:   payDetails.paypalEmail }),
+        ...(payMethod === 'net_banking'    && { bankName:      payDetails.bankName }),
+        ...(payMethod === 'digital_wallet' && { walletId:      payDetails.walletId }),
+        ...(payMethod === 'bank_transfer'  && {
+          accountNumber: payDetails.accountNumber,
+          routingNumber: payDetails.routingNumber,
         }),
+        ...(payMethod === 'cryptocurrency' && { cryptoCoin:    payDetails.cryptoCoin }),
+        ...(payMethod === 'gift_card'      && { giftCardCode:  payDetails.giftCardCode }),
       };
       const res = await api.post('/orders/place', payload);
       setOrderId(res.data?.orderId ?? res.data?.id ?? `ORD-${Date.now()}`);
@@ -667,65 +732,61 @@ export default function Checkout() {
                   <FaCreditCard className="text-blue-600" /> Payment Method
                 </h2>
 
-                {/* Method toggle */}
-                <div className="flex gap-3 mb-6">
-                  {[
-                    { id: 'card', label: 'Credit / Debit Card', icon: <FaCreditCard /> },
-                    { id: 'cod',  label: 'Cash on Delivery',    icon: <FaMoneyBillWave /> },
-                  ].map(m => (
+                {/* Method grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-6">
+                  {PAY_METHODS.map(m => (
                     <button
                       key={m.id}
                       type="button"
                       onClick={() => setPayMethod(m.id)}
-                      className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 text-sm font-medium transition-all
+                      className={`flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl border-2 text-xs font-medium transition-all
                         ${payMethod === m.id
                           ? 'border-blue-500 bg-blue-50 text-blue-700'
-                          : 'border-gray-200 text-gray-500 hover:border-blue-200'
+                          : 'border-gray-200 text-gray-500 hover:border-blue-200 hover:bg-gray-50'
                         }`}
                     >
-                      {m.icon} {m.label}
+                      <span className={`text-lg ${payMethod === m.id ? 'text-blue-600' : m.color}`}>
+                        {m.icon}
+                      </span>
+                      {m.label}
                     </button>
                   ))}
                 </div>
 
-                {payMethod === 'card' && (
+                {/* ── Credit / Debit Card ── */}
+                {(payMethod === 'credit_card' || payMethod === 'debit_card') && (
                   <div className="space-y-6">
-                    {/* Card preview */}
                     <CardVisual
-                      num={card.number}
-                      name={card.name}
-                      expiry={card.expiry}
+                      num={payDetails.number}
+                      name={payDetails.name}
+                      expiry={payDetails.expiry}
                       flipped={cvvFocused}
                     />
-
-                    {/* Card fields */}
-                    <div className="space-y-3 mt-4">
+                    <div className="space-y-3">
                       <Field label="Card Number" required>
                         <TextInput
-                          value={card.number}
-                          onChange={e => setCard(c => ({ ...c, number: formatCardNumber(e.target.value) }))}
+                          value={payDetails.number}
+                          onChange={e => setPay('number', formatCardNumber(e.target.value))}
                           placeholder="1234 5678 9012 3456"
                           maxLength={19}
                           className={errors.cardNumber ? 'border-red-300 focus:border-red-400 focus:ring-red-50' : ''}
                         />
                         {errors.cardNumber && <p className="text-xs text-red-500 mt-1">{errors.cardNumber}</p>}
                       </Field>
-
                       <Field label="Name on Card" required>
                         <TextInput
-                          value={card.name}
-                          onChange={e => setCard(c => ({ ...c, name: e.target.value }))}
+                          value={payDetails.name}
+                          onChange={e => setPay('name', e.target.value)}
                           placeholder="Jane Doe"
                           className={errors.cardName ? 'border-red-300 focus:border-red-400 focus:ring-red-50' : ''}
                         />
                         {errors.cardName && <p className="text-xs text-red-500 mt-1">{errors.cardName}</p>}
                       </Field>
-
                       <div className="grid grid-cols-2 gap-3">
                         <Field label="Expiry Date" required>
                           <TextInput
-                            value={card.expiry}
-                            onChange={e => setCard(c => ({ ...c, expiry: formatExpiry(e.target.value) }))}
+                            value={payDetails.expiry}
+                            onChange={e => setPay('expiry', formatExpiry(e.target.value))}
                             placeholder="MM/YY"
                             maxLength={5}
                             className={errors.expiry ? 'border-red-300 focus:border-red-400 focus:ring-red-50' : ''}
@@ -735,8 +796,8 @@ export default function Checkout() {
                         <Field label="CVV" required>
                           <TextInput
                             type="password"
-                            value={card.cvv}
-                            onChange={e => setCard(c => ({ ...c, cvv: e.target.value.replace(/\D/g, '').slice(0, 4) }))}
+                            value={payDetails.cvv}
+                            onChange={e => setPay('cvv', e.target.value.replace(/\D/g, '').slice(0, 4))}
                             placeholder="•••"
                             maxLength={4}
                             className={errors.cvv ? 'border-red-300 focus:border-red-400 focus:ring-red-50' : ''}
@@ -747,7 +808,6 @@ export default function Checkout() {
                         </Field>
                       </div>
                     </div>
-
                     <div className="flex items-center gap-2 text-xs text-gray-400 bg-gray-50 rounded-lg px-3 py-2">
                       <FaLock className="text-gray-300" />
                       Your card details are encrypted end-to-end and never stored.
@@ -755,6 +815,160 @@ export default function Checkout() {
                   </div>
                 )}
 
+                {/* ── UPI ── */}
+                {payMethod === 'upi' && (
+                  <div className="space-y-3">
+                    <Field label="UPI ID" required>
+                      <TextInput
+                        value={payDetails.upiId}
+                        onChange={e => setPay('upiId', e.target.value)}
+                        placeholder="yourname@upi"
+                        className={errors.upiId ? 'border-red-300 focus:border-red-400 focus:ring-red-50' : ''}
+                      />
+                      {errors.upiId && <p className="text-xs text-red-500 mt-1">{errors.upiId}</p>}
+                    </Field>
+                    <p className="text-xs text-gray-400">
+                      Enter your UPI ID (e.g. phone@okaxis, name@paytm, user@ybl)
+                    </p>
+                  </div>
+                )}
+
+                {/* ── PayPal ── */}
+                {payMethod === 'paypal' && (
+                  <div className="space-y-3">
+                    <Field label="PayPal Email" required>
+                      <TextInput
+                        value={payDetails.paypalEmail}
+                        onChange={e => setPay('paypalEmail', e.target.value)}
+                        placeholder="you@example.com"
+                        className={errors.paypalEmail ? 'border-red-300 focus:border-red-400 focus:ring-red-50' : ''}
+                      />
+                      {errors.paypalEmail && <p className="text-xs text-red-500 mt-1">{errors.paypalEmail}</p>}
+                    </Field>
+                    <div className="flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-xl p-3">
+                      <FaPaypal className="text-blue-500 text-xl shrink-0 mt-0.5" />
+                      <p className="text-xs text-blue-700 leading-relaxed">
+                        You will be redirected to PayPal to securely complete your payment after placing the order.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Net Banking ── */}
+                {payMethod === 'net_banking' && (
+                  <div className="space-y-3">
+                    <Field label="Select Bank" required>
+                      <select
+                        value={payDetails.bankName}
+                        onChange={e => setPay('bankName', e.target.value)}
+                        className={`border rounded-lg px-3 py-2.5 text-sm text-gray-800 bg-white
+                          focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 transition-all
+                          ${errors.bankName ? 'border-red-300' : 'border-gray-200'}`}
+                      >
+                        <option value="">— Choose your bank —</option>
+                        {BANKS.map(b => <option key={b} value={b}>{b}</option>)}
+                      </select>
+                      {errors.bankName && <p className="text-xs text-red-500 mt-1">{errors.bankName}</p>}
+                    </Field>
+                    <div className="flex items-start gap-3 bg-purple-50 border border-purple-100 rounded-xl p-3">
+                      <FaUniversity className="text-purple-500 text-xl shrink-0 mt-0.5" />
+                      <p className="text-xs text-purple-700 leading-relaxed">
+                        You will be redirected to your bank's secure portal to complete the payment.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Digital Wallet ── */}
+                {payMethod === 'digital_wallet' && (
+                  <div className="space-y-3">
+                    <Field label="Wallet Phone / Email" required>
+                      <TextInput
+                        value={payDetails.walletId}
+                        onChange={e => setPay('walletId', e.target.value)}
+                        placeholder="+1 555 000 0000 or wallet@email.com"
+                        className={errors.walletId ? 'border-red-300 focus:border-red-400 focus:ring-red-50' : ''}
+                      />
+                      {errors.walletId && <p className="text-xs text-red-500 mt-1">{errors.walletId}</p>}
+                    </Field>
+                    <p className="text-xs text-gray-400">
+                      Supports Paytm, Google Pay, PhonePe, Apple Pay, and other digital wallets.
+                    </p>
+                  </div>
+                )}
+
+                {/* ── Bank Transfer ── */}
+                {payMethod === 'bank_transfer' && (
+                  <div className="space-y-3">
+                    <Field label="Account Number" required>
+                      <TextInput
+                        value={payDetails.accountNumber}
+                        onChange={e => setPay('accountNumber', e.target.value.replace(/\D/g, ''))}
+                        placeholder="Enter your account number"
+                        className={errors.accountNumber ? 'border-red-300 focus:border-red-400 focus:ring-red-50' : ''}
+                      />
+                      {errors.accountNumber && <p className="text-xs text-red-500 mt-1">{errors.accountNumber}</p>}
+                    </Field>
+                    <Field label="Routing / IFSC Code" required>
+                      <TextInput
+                        value={payDetails.routingNumber}
+                        onChange={e => setPay('routingNumber', e.target.value.toUpperCase())}
+                        placeholder="e.g. SBIN0001234"
+                        className={errors.routingNumber ? 'border-red-300 focus:border-red-400 focus:ring-red-50' : ''}
+                      />
+                      {errors.routingNumber && <p className="text-xs text-red-500 mt-1">{errors.routingNumber}</p>}
+                    </Field>
+                    <div className="flex items-center gap-2 text-xs text-gray-400 bg-gray-50 rounded-lg px-3 py-2">
+                      <FaLock className="text-gray-300" />
+                      Your bank details are transmitted over a secure encrypted connection.
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Cryptocurrency ── */}
+                {payMethod === 'cryptocurrency' && (
+                  <div className="space-y-3">
+                    <Field label="Select Cryptocurrency" required>
+                      <select
+                        value={payDetails.cryptoCoin}
+                        onChange={e => setPay('cryptoCoin', e.target.value)}
+                        className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 bg-white
+                          focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 transition-all"
+                      >
+                        {CRYPTO_COINS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                      </select>
+                    </Field>
+                    <div className="flex items-start gap-3 bg-yellow-50 border border-yellow-100 rounded-xl p-3">
+                      <FaBitcoin className="text-yellow-500 text-xl shrink-0 mt-0.5" />
+                      <p className="text-xs text-yellow-700 leading-relaxed">
+                        A wallet address will be provided after order confirmation. Payment must be completed within 30 minutes.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Gift Card ── */}
+                {payMethod === 'gift_card' && (
+                  <div className="space-y-3">
+                    <Field label="Gift Card Code" required>
+                      <TextInput
+                        value={payDetails.giftCardCode}
+                        onChange={e => setPay('giftCardCode', e.target.value.toUpperCase())}
+                        placeholder="XXXX-XXXX-XXXX-XXXX"
+                        className={errors.giftCardCode ? 'border-red-300 focus:border-red-400 focus:ring-red-50' : ''}
+                      />
+                      {errors.giftCardCode && <p className="text-xs text-red-500 mt-1">{errors.giftCardCode}</p>}
+                    </Field>
+                    <div className="flex items-start gap-3 bg-pink-50 border border-pink-100 rounded-xl p-3">
+                      <FaGift className="text-pink-500 text-xl shrink-0 mt-0.5" />
+                      <p className="text-xs text-pink-700 leading-relaxed">
+                        Enter the code printed on the back of your gift card. Balance will be applied at checkout.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Cash on Delivery ── */}
                 {payMethod === 'cod' && (
                   <div className="flex items-start gap-4 bg-amber-50 border border-amber-100 rounded-xl p-4">
                     <FaMoneyBillWave className="text-amber-500 text-xl shrink-0 mt-0.5" />
@@ -822,24 +1036,60 @@ export default function Checkout() {
                       Change
                     </button>
                   </div>
-                  {payMethod === 'card' ? (
-                    <div className="flex items-center gap-3 text-sm">
-                      <div className="w-10 h-7 bg-gray-800 rounded flex items-center justify-center">
-                        <FaCreditCard className="text-white text-xs" />
+                  {(() => {
+                    const m = PAY_METHODS.find(x => x.id === payMethod);
+                    const isCard = payMethod === 'credit_card' || payMethod === 'debit_card';
+                    return (
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-7 rounded-lg flex items-center justify-center text-base
+                          ${isCard ? 'bg-gray-800 text-white' : 'bg-gray-100'}`}>
+                          <span className={isCard ? 'text-white' : m?.color}>{m?.icon}</span>
+                        </div>
+                        <div>
+                          {isCard && (
+                            <>
+                              <p className="text-sm font-medium text-gray-800">{maskCard(payDetails.number)}</p>
+                              {detectBrand(payDetails.number) && (
+                                <p className="text-xs text-gray-400 capitalize">
+                                  {CARD_BRANDS[detectBrand(payDetails.number)]?.label} · {payMethod === 'credit_card' ? 'Credit' : 'Debit'}
+                                </p>
+                              )}
+                            </>
+                          )}
+                          {payMethod === 'upi' && (
+                            <p className="text-sm font-medium text-gray-800">{payDetails.upiId || 'UPI'}</p>
+                          )}
+                          {payMethod === 'paypal' && (
+                            <p className="text-sm font-medium text-gray-800">{payDetails.paypalEmail || 'PayPal'}</p>
+                          )}
+                          {payMethod === 'net_banking' && (
+                            <p className="text-sm font-medium text-gray-800">{payDetails.bankName || 'Net Banking'}</p>
+                          )}
+                          {payMethod === 'digital_wallet' && (
+                            <p className="text-sm font-medium text-gray-800">{payDetails.walletId || 'Digital Wallet'}</p>
+                          )}
+                          {payMethod === 'bank_transfer' && (
+                            <p className="text-sm font-medium text-gray-800">
+                              ••••{payDetails.accountNumber.slice(-4) || '——'} · Bank Transfer
+                            </p>
+                          )}
+                          {payMethod === 'cryptocurrency' && (
+                            <p className="text-sm font-medium text-gray-800">
+                              {CRYPTO_COINS.find(c => c.id === payDetails.cryptoCoin)?.label ?? 'Cryptocurrency'}
+                            </p>
+                          )}
+                          {payMethod === 'gift_card' && (
+                            <p className="text-sm font-medium text-gray-800">
+                              Gift Card ····{payDetails.giftCardCode.slice(-4) || '——'}
+                            </p>
+                          )}
+                          {payMethod === 'cod' && (
+                            <p className="text-sm font-medium text-gray-800">Cash on Delivery</p>
+                          )}
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-medium text-gray-800">{maskCard(card.number)}</p>
-                        {detectBrand(card.number) && (
-                          <p className="text-xs text-gray-400 capitalize">{CARD_BRANDS[detectBrand(card.number)]?.label}</p>
-                        )}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-3">
-                      <FaMoneyBillWave className="text-amber-500 text-xl" />
-                      <p className="text-sm font-medium text-gray-800">Cash on Delivery</p>
-                    </div>
-                  )}
+                    );
+                  })()}
                 </div>
 
                 {/* Items */}
