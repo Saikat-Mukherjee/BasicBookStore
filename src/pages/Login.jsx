@@ -1,11 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import { Link, redirect,useNavigate } from 'react-router-dom';
 import { loginUser } from '../services/auth';
+import { UserContext } from '../App';
+import api from '../services/api';
 
 const Login = () => {
     const [name, setName] = useState('');
     const [password, setPassword] = useState('');
     const navigate = useNavigate();
+    const { setUser } = useContext(UserContext);
 
     const handleSubmit =async (e) => {
         e.preventDefault();
@@ -16,6 +19,17 @@ const Login = () => {
         try {
             const token = await loginUser(name, password);
             console.log('Login successful:', token);
+            
+            // Fetch user profile after successful login
+            try {
+                const response = await api.get('/users/profile');
+                if (response.status === 200 && typeof response.data !== 'string') {
+                    setUser(response.data);
+                }
+            } catch (profileError) {
+                console.error('Error fetching profile:', profileError);
+            }
+
             // Redirect to home page
             navigate('/');
           } catch (error) {
@@ -25,12 +39,12 @@ const Login = () => {
     };
 
     return (
-        <div className="flex justify-center items-center min-h-screen bg-gray-100">
-            <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
-                <h2 className="text-2xl font-bold mb-6 text-center">Login</h2>
-                <form onSubmit={handleSubmit}>
-                    <div className="mb-4">
-                       <label htmlFor="name" className="block text-gray-700 font-medium mb-2">Username:</label>
+        <div className="flex justify-center items-center min-h-[80vh]">
+            <div className="bg-white p-8 rounded-xl shadow-lg w-full max-w-md border border-gray-100">
+                <h2 className="text-3xl font-bold mb-8 text-center text-gray-800">Welcome Back</h2>
+                <form onSubmit={handleSubmit} className="space-y-6">
+                    <div>
+                       <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">Username</label>
                         <input
                             type="text"
                             id="name"
@@ -38,24 +52,28 @@ const Login = () => {
                             value={name}
                             onChange={(e) => setName(e.target.value)}
                             required
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                            placeholder="Enter your username"
                         />
                     </div>
-                    <div className="mb-4">
-                        <label htmlFor="password" className="block text-gray-700 font-medium mb-2">Password:</label>
+                    <div>
+                        <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">Password</label>
                         <input
                             type="password"
                             id="password"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             required
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                            placeholder="Enter your password"
                         />
                     </div>
-                    <button type="submit" className="w-full bg-blue-500 text-white py-2 rounded-md hover:bg-blue-600 transition duration-200">Login</button>
+                    <button type="submit" className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition duration-200 font-semibold shadow-md hover:shadow-lg transform hover:-translate-y-0.5">
+                        Sign In
+                    </button>
                 </form>
-                <p className="mt-4 text-center">
-                    Don't have an account? <Link to="/signup" className="text-blue-500 hover:underline">Sign up</Link>
+                <p className="mt-6 text-center text-gray-600">
+                    Don't have an account? <Link to="/signup" className="text-blue-600 hover:text-blue-800 font-medium hover:underline">Sign up</Link>
                 </p>
             </div>
         </div>

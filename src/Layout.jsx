@@ -5,14 +5,16 @@ import ChatBot from './components/chatbot';
 
 const Layout = () => {
     return (
-        <div>
+        <div className="flex flex-col min-h-screen bg-gray-50">
            <Header/>
-            <main>
+            <main className="flex-grow container mx-auto px-4 py-8">
                 <Outlet />
                 <ChatBot />
             </main>
-            <footer>
-                <p>&copy; 2023 BookStore. All rights reserved.</p>
+            <footer className="bg-gray-800 text-white py-6 mt-auto">
+                <div className="container mx-auto px-4 text-center">
+                    <p>&copy; {new Date().getFullYear()} BookStore. All rights reserved.</p>
+                </div>
             </footer>
         </div>
     );
