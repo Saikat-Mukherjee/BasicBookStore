@@ -416,6 +416,7 @@ export default function Checkout() {
   const [placed,   setPlaced]   = useState(false);
   const [orderId,  setOrderId]  = useState('');
   const [errors,   setErrors]   = useState({});
+  const [cartId,   setCartId]   = useState(null);
 
   /* ── fetch ── */
   useEffect(() => {
@@ -431,6 +432,8 @@ export default function Checkout() {
         setSubtotal(d.subtotal ?? 0);
         setShippingCost(d.shippingAmount ?? 0);
         setTotal(d.totalAmount ?? 0);
+        setCartId(d.cartId ?? null);
+
 
         const addrs = Array.isArray(addrRes.data) ? addrRes.data : [];
         setSavedAddresses(addrs);
@@ -529,8 +532,10 @@ export default function Checkout() {
       const addr = await resolveAddress();
       const isCard = payMethod === 'credit_card' || payMethod === 'debit_card';
       const payload = {
-        addressId:      addr.id,
+       // addressId:      addr.id,
+       shippingAddressId: addr.id,
         shippingMethod: shippingMethod,
+        cartId:         cartId,
         paymentMethod:  payMethod.toUpperCase(),
         ...(isCard && { cardLast4: payDetails.number.replace(/\s/g, '').slice(-4) }),
         ...(payMethod === 'upi'            && { upiId:         payDetails.upiId }),
@@ -544,7 +549,9 @@ export default function Checkout() {
         ...(payMethod === 'cryptocurrency' && { cryptoCoin:    payDetails.cryptoCoin }),
         ...(payMethod === 'gift_card'      && { giftCardCode:  payDetails.giftCardCode }),
       };
-      const res = await api.post('/orders/place', payload);
+      console.log('Placing order with payload:', payload);
+      //const res = await api.post('/orders/place', payload);
+      const res = await api.post(`/api/orders/from-cart/${cartId}`, payload);
       setOrderId(res.data?.orderId ?? res.data?.id ?? `ORD-${Date.now()}`);
     } catch {
       setOrderId(`ORD-${Date.now()}`);

@@ -15,21 +15,23 @@ const STATUS_STYLES = {
 };
 
 const EMPTY_ADDRESS = {
-  type: 'Home',
-  fullName: '',
+  type: 'HOME',
+  //name: '',
   phone: '',
+  email: '',
   addressLine1: '',
   addressLine2: '',
   city: '',
   state: '',
-  zip: '',
+  country: 'India',
+  zipCode: '',
   default: false,
 };
 
 const TYPE_ICON = {
-  Home:   <FaHome />,
-  Office: <FaBriefcase />,
-  Other:  <FaMapMarkerAlt />,
+  HOME:   <FaHome />,
+  OFFICE: <FaBriefcase />,
+  OTHER:  <FaMapMarkerAlt />,
 };
 
 /* ─── TabButton ─── */
@@ -89,6 +91,7 @@ function AddressForm({ initial = EMPTY_ADDRESS, onSave, onCancel, saving }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    console.log('Saving address:', form);
     onSave(form);
   };
 
@@ -100,7 +103,7 @@ function AddressForm({ initial = EMPTY_ADDRESS, onSave, onCancel, saving }) {
 
       {/* Type selector */}
       <div className="flex gap-2 flex-wrap">
-        {['Home', 'Office', 'Other'].map(t => (
+        {['HOME', 'OFFICE', 'OTHER'].map(t => (
           <button
             type="button"
             key={t}
@@ -118,8 +121,8 @@ function AddressForm({ initial = EMPTY_ADDRESS, onSave, onCancel, saving }) {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <InputField
-          label="Full Name" value={form.fullName}
-          onChange={e => set('fullName', e.target.value)}
+          label="Full Name" value={form.name}
+          onChange={e => set('name', e.target.value)}
           placeholder="Jane Doe" required
         />
         <InputField
@@ -152,8 +155,8 @@ function AddressForm({ initial = EMPTY_ADDRESS, onSave, onCancel, saving }) {
           placeholder="MA" required
         />
         <InputField
-          label="ZIP / Postal Code" value={form.zip}
-          onChange={e => set('zip', e.target.value)}
+          label="ZIP / Postal Code" value={form.zipCode}
+          onChange={e => set('zipCode', e.target.value)}
           placeholder="02108" required
         />
       </div>
@@ -220,10 +223,10 @@ function AddressCard({ address, onEdit, onDelete, onSetDefault, isDeleting }) {
       </div>
 
       <div className="text-sm text-gray-700 leading-relaxed space-y-0.5">
-        {address.fullName && <p className="font-medium">{address.fullName}</p>}
+        {address.name && <p className="font-medium">{address.name}</p>}
         <p>{address.addressLine1}</p>
         {address.addressLine2 && <p>{address.addressLine2}</p>}
-        <p>{address.city}{address.state ? `, ${address.state}` : ''} {address.zip}</p>
+        <p>{address.city}{address.state ? `, ${address.state}` : ''} {address.zipCode}</p>
         {address.phone && (
           <p className="flex items-center gap-1 text-gray-500 text-xs mt-1">
             <FaPhone className="text-xs" /> {address.phone}
@@ -350,7 +353,8 @@ function Profile() {
   const handleAddAddress = async (form) => {
     setSavingAddr(true);
     try {
-      const res = await api.post('/address', form);
+      //const res = await api.post('/address', form);
+      const res = await api.post('/address/add', form);
       const saved = res.data?.id ? res.data : { ...form, id: Date.now() };
       setAddresses(prev =>
         form.default
