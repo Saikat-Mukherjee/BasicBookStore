@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   FaBook, FaBookOpen, FaMapMarkerAlt, FaBox, FaUser,
   FaEdit, FaTrash, FaPlus, FaCheck, FaTimes, FaStar,
   FaPhone, FaEnvelope, FaCalendarAlt, FaHome, FaBriefcase,
+  FaCamera, FaTag,
 } from 'react-icons/fa';
 import api from '../services/api';
 
@@ -30,9 +31,16 @@ const EMPTY_ADDRESS = {
 
 const TYPE_ICON = {
   HOME:   <FaHome />,
-  OFFICE: <FaBriefcase />,
+  WORK: <FaBriefcase />,
   OTHER:  <FaMapMarkerAlt />,
 };
+
+const GENRES = [
+  'Fiction', 'Non-Fiction', 'Science Fiction', 'Fantasy', 'Mystery',
+  'Thriller', 'Romance', 'Historical Fiction', 'Biography', 'Self-Help',
+  'Science', 'Technology', 'Business', 'History', 'Horror', 'Poetry',
+  'Graphic Novel', 'Young Adult', "Children's",
+];
 
 /* ─── TabButton ─── */
 function TabButton({ icon, label, active, onClick }) {
@@ -103,7 +111,7 @@ function AddressForm({ initial = EMPTY_ADDRESS, onSave, onCancel, saving }) {
 
       {/* Type selector */}
       <div className="flex gap-2 flex-wrap">
-        {['HOME', 'OFFICE', 'OTHER'].map(t => (
+        {['HOME', 'WORK', 'OTHER'].map(t => (
           <button
             type="button"
             key={t}
@@ -276,11 +284,14 @@ function Profile() {
     email: 'john.doe@example.com',
     phone: '123-456-7890',
     memberSince: '2023',
+    dob: '',
+    profilePicture: null,
     readingPreferences: ['Fiction', 'Science', 'History'],
   });
   const [editMode, setEditMode]     = useState(false);
   const [draftUser, setDraftUser]   = useState(user);
   const [savingProfile, setSavingProfile] = useState(false);
+  const picInputRef = useRef(null);
 
   /* ── orders ── */
   const [orders] = useState([
@@ -319,13 +330,17 @@ function Profile() {
   useEffect(() => {
     async function fetchUserProfile() {
       try {
-        const res = await api.get('/users/profile');
+       // const res = await api.get('/users/profile');
+        const res = await api.get('/profile/view');
         setUser(prev => ({
           ...prev,
-          name:  res.data.username || prev.name,
-          email: res.data.email    || prev.email,
-          phone: res.data.phone    || prev.phone,
+          id: res.data.id || prev.id,
+          name:  (res.data.firstname + ' ' + res.data.lastname) || prev.name,
+          email: res.data.email_address    || prev.email,
+          phone: res.data.phonenumber    || prev.phonenumber,
           memberSince: res.data.memberSince || prev.memberSince,
+          dob: res.data.dob || prev.dob,
+          profilePicture: res.data.profilePicture || prev.profilePicture,
           readingPreferences: res.data.readingPreferences || prev.readingPreferences,
         }));
       } catch { /* keep defaults */ }
@@ -340,10 +355,37 @@ function Profile() {
     fetchAddresses();
   }, []);
 
+  /* ── preference toggle ── */
+  const togglePreference = (genre) => {
+    setDraftUser(d => ({
+      ...d,
+      readingPreferences: d.readingPreferences.includes(genre)
+        ? d.readingPreferences.filter(p => p !== genre)
+        : [...d.readingPreferences, genre],
+    }));
+  };
+
   /* ── profile handlers ── */
   const handleSaveProfile = async () => {
     setSavingProfile(true);
-    try { await api.put('/users/profile', draftUser); } catch { /* local update */ }
+    //try { await api.put('/users/profile', draftUser); } catch { /* local update */ }
+      try {
+        const payload = {
+          id: user.id,
+          firstname: draftUser.name.split(' ')[0],
+          lastname: draftUser.name.split(' ')[1] || '',
+          email_address: draftUser.email,
+          phonenumber: draftUser.phone,
+          dob: draftUser.dob,
+          profilePicture: draftUser.profilePicture,
+          readingPreferences: draftUser.readingPreferences,
+        };
+        const res = await api.post('/profile/update', payload);
+        console.log('Update profile response:', res.data);
+      } catch {
+        console.error('Failed to update profile');
+      }
+
     setUser(draftUser);
     setEditMode(false);
     setSavingProfile(false);
@@ -370,7 +412,14 @@ function Profile() {
 
   const handleUpdateAddress = async (form) => {
     setSavingAddr(true);
-    try { await api.put(`/address/${form.id}`, form); } catch { /* local update */ }
+    //try { await api.put(`/address/${form.id}`, form); } catch { /* local update */ }
+      try {
+        const res = await api.put(`/address/update`, form);
+        console.log('Update address response:', res.data);
+      } catch {
+        console.error('Failed to update address');
+      }
+
     setAddresses(prev =>
       prev.map(a =>
         a.id === form.id
@@ -384,14 +433,32 @@ function Profile() {
 
   const handleDeleteAddress = async (id) => {
     setDeletingId(id);
-    try { await api.delete(`/address/${id}`); } catch { /* local removal */ }
+    //try { await api.delete(`/address/${id}`); } catch { /* local removal */ }
+    try {
+      const res = await api.delete(`/address/remove/${id}`);
+      console.log('Delete address response:', res.data);
+    } catch {
+      console.error('Failed to delete address');
+    }
+
     setAddresses(prev => prev.filter(a => a.id !== id));
     setDeletingId(null);
   };
 
   const handleSetDefault = async (id) => {
-    try { await api.put(`/address/${id}/default`); } catch { /* local update */ }
-    setAddresses(prev => prev.map(a => ({ ...a, default: a.id === id })));
+    //try { await api.put(`/address/${id}/default`); } catch { /* local update */ }
+    try{
+      const res = await api.put(`/address/set-default/${id}`);
+      console.log('Set default response:', res.data);
+      if(res.data?.default == true){
+        setAddresses(prev => prev.map(a => ({ ...a, default: a.id === id })));
+      }
+      
+    } catch {
+        //setAddresses(prev => prev.map(a => ({ ...a, default: a.id === id })));
+        console.error('Failed to set default address');
+    }
+    //setAddresses(prev => prev.map(a => ({ ...a, default: a.id === id })));
   };
 
   /* ── derived ── */
@@ -409,10 +476,14 @@ function Profile() {
         {/* ── Profile hero banner ── */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-5
           flex flex-col sm:flex-row items-center sm:items-start gap-5">
-          {/* Avatar initials */}
-          <div className="w-20 h-20 rounded-2xl bg-blue-600 flex items-center justify-center
-            text-white text-2xl font-bold shadow-md shrink-0">
-            {initials}
+          {/* Avatar */}
+          <div className="w-20 h-20 rounded-2xl overflow-hidden shrink-0 shadow-md
+            flex items-center justify-center text-white text-2xl font-bold
+            bg-blue-600">
+            {user.profilePicture
+              ? <img src={user.profilePicture} alt={user.name} className="w-full h-full object-cover" />
+              : initials
+            }
           </div>
 
           {/* Info */}
@@ -496,11 +567,28 @@ function Profile() {
 
                   {!editMode ? (
                     <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Profile Picture */}
+                      {user.profilePicture && (
+                        <div className="bg-gray-50 rounded-xl p-4 sm:col-span-2 flex items-center gap-4">
+                          <img
+                            src={user.profilePicture}
+                            alt={user.name}
+                            className="w-16 h-16 rounded-xl object-cover border-2 border-blue-100"
+                          />
+                          <div>
+                            <dt className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Profile Photo</dt>
+                            <dd className="text-xs text-gray-500">Click Edit to change your photo</dd>
+                          </div>
+                        </div>
+                      )}
                       {[
                         { label: 'Full Name',    value: user.name          },
                         { label: 'Email',        value: user.email         },
                         { label: 'Phone',        value: user.phone || '—'  },
                         { label: 'Member Since', value: user.memberSince   },
+                        { label: 'Date of Birth', value: user.dob
+                            ? new Date(user.dob + 'T00:00:00').toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+                            : '—' },
                       ].map(({ label, value }) => (
                         <div key={label} className="bg-gray-50 rounded-xl p-4">
                           <dt className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">
@@ -514,17 +602,76 @@ function Profile() {
                           Reading Preferences
                         </dt>
                         <dd className="flex flex-wrap gap-2">
-                          {user.readingPreferences?.map(p => (
-                            <span key={p} className="px-3 py-1 bg-white border border-blue-100
-                              text-blue-600 rounded-full text-sm font-medium">
-                              {p}
-                            </span>
-                          ))}
+                          {user.readingPreferences?.length > 0
+                            ? user.readingPreferences.map(p => (
+                                <span key={p} className="px-3 py-1 bg-white border border-blue-100
+                                  text-blue-600 rounded-full text-sm font-medium">
+                                  {p}
+                                </span>
+                              ))
+                            : <span className="text-sm text-gray-400">No preferences set</span>
+                          }
                         </dd>
                       </div>
                     </dl>
                   ) : (
-                    <div className="space-y-4">
+                    <div className="space-y-5">
+
+                      {/* ── Profile Picture Upload ── */}
+                      <div className="flex items-center gap-4 bg-gray-50 border border-gray-100 rounded-xl p-4">
+                        <div
+                          className="relative w-16 h-16 shrink-0 rounded-xl overflow-hidden cursor-pointer group shadow-sm"
+                          onClick={() => picInputRef.current?.click()}
+                        >
+                          <div className="w-full h-full bg-blue-600 flex items-center justify-center text-white text-lg font-bold">
+                            {draftUser.profilePicture
+                              ? <img src={draftUser.profilePicture} alt="Preview" className="w-full h-full object-cover" />
+                              : initials
+                            }
+                          </div>
+                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center
+                            opacity-0 group-hover:opacity-100 transition-opacity">
+                            <FaCamera className="text-white text-base" />
+                          </div>
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold text-gray-800">Profile Photo</p>
+                          <p className="text-xs text-gray-400 mt-0.5">JPG, PNG or GIF · Max 5 MB</p>
+                          <div className="flex gap-3 mt-2">
+                            <button
+                              type="button"
+                              onClick={() => picInputRef.current?.click()}
+                              className="text-xs font-medium text-blue-600 hover:text-blue-700"
+                            >
+                              {draftUser.profilePicture ? 'Change photo' : 'Upload photo'}
+                            </button>
+                            {draftUser.profilePicture && (
+                              <button
+                                type="button"
+                                onClick={() => setDraftUser(d => ({ ...d, profilePicture: null }))}
+                                className="text-xs font-medium text-red-400 hover:text-red-600"
+                              >
+                                Remove
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        <input
+                          ref={picInputRef}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files[0];
+                            if (!file) return;
+                            const reader = new FileReader();
+                            reader.onload = (ev) => setDraftUser(d => ({ ...d, profilePicture: ev.target.result }));
+                            reader.readAsDataURL(file);
+                          }}
+                        />
+                      </div>
+
+                      {/* ── Basic Info ── */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <InputField
                           label="Full Name" value={draftUser.name} required
@@ -541,8 +688,44 @@ function Profile() {
                           onChange={e => setDraftUser(d => ({ ...d, phone: e.target.value }))}
                           placeholder="+1 555 000 0000"
                         />
+                        <InputField
+                          label="Date of Birth" type="date" value={draftUser.dob || ''}
+                          onChange={e => setDraftUser(d => ({ ...d, dob: e.target.value }))}
+                        />
                       </div>
-                      <div className="flex gap-3 pt-2">
+
+                      {/* ── Reading Preferences ── */}
+                      <div>
+                        <label className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">
+                          <FaTag className="text-blue-400" /> Reading Preferences
+                          <span className="normal-case font-normal text-gray-400 ml-1">
+                            — select all that apply
+                          </span>
+                        </label>
+                        <div className="flex flex-wrap gap-2">
+                          {GENRES.map(genre => (
+                            <button
+                              key={genre}
+                              type="button"
+                              onClick={() => togglePreference(genre)}
+                              className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-150
+                                ${
+                                  draftUser.readingPreferences.includes(genre)
+                                    ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                                    : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300 hover:text-blue-600'
+                                }`}
+                            >
+                              {genre}
+                            </button>
+                          ))}
+                        </div>
+                        {draftUser.readingPreferences.length > 0 && (
+                          <p className="text-xs text-gray-400 mt-2">
+                            {draftUser.readingPreferences.length} genre{draftUser.readingPreferences.length !== 1 ? 's' : ''} selected
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex gap-3 pt-1">
                         <button
                           onClick={handleSaveProfile}
                           disabled={savingProfile}
