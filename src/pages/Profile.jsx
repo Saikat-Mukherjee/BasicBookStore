@@ -341,10 +341,29 @@ function Profile() {
           memberSince: res.data.memberSince || prev.memberSince,
           dob: res.data.dob || prev.dob,
           profilePicture: res.data.profilePicture || prev.profilePicture,
+          profilePicId: res.data.profilePicId || prev.profilePicId,
           readingPreferences: res.data.readingPreferences || prev.readingPreferences,
+        }));
+
+        setDraftUser(prev => ({
+          ...prev,
+          profilePicture: getUserProfilePictureUrl(res.data.profilePicId) || prev.profilePicture,
+          // profilePicId: res.data.profilePicId || prev.profilePicId,
         }));
       } catch { /* keep defaults */ }
     }
+
+    async function getUserProfilePictureUrl(picId) {
+      if (!picId) return null;
+      try {
+        //const res = await api.get(`/test/get/image//${picId}`);
+        //return res.data?.url || null;
+        return `http://localhost:8080/test/get/image/${picId}`;
+      } catch {
+        return null;
+      }
+    }
+
     async function fetchAddresses() {
       try {
         const res = await api.get('/address/all');
@@ -352,6 +371,7 @@ function Profile() {
       } catch { /* keep defaults */ }
     }
     fetchUserProfile();
+    console.log('Fetched user profile:', user);
     fetchAddresses();
   }, []);
 
@@ -461,6 +481,12 @@ function Profile() {
     //setAddresses(prev => prev.map(a => ({ ...a, default: a.id === id })));
   };
 
+  const getUserProfilePictureUrl = (picId) => {
+    if (!picId) return null;
+    //return `http://localhost:8080/test/get/image/${picId}`;
+    return `http://localhost:8080/test/get/image/${picId}`;
+  };
+
   /* ── derived ── */
   const initials = user.name
     ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
@@ -480,8 +506,8 @@ function Profile() {
           <div className="w-20 h-20 rounded-2xl overflow-hidden shrink-0 shadow-md
             flex items-center justify-center text-white text-2xl font-bold
             bg-blue-600">
-            {user.profilePicture
-              ? <img src={user.profilePicture} alt={user.name} className="w-full h-full object-cover" />
+            {getUserProfilePictureUrl(user.profilePicId)
+              ? <img src={getUserProfilePictureUrl(user.profilePicId)} alt={user.name} className="w-full h-full object-cover" />
               : initials
             }
           </div>
@@ -568,10 +594,10 @@ function Profile() {
                   {!editMode ? (
                     <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       {/* Profile Picture */}
-                      {user.profilePicture && (
+                      {user.profilePicId && (
                         <div className="bg-gray-50 rounded-xl p-4 sm:col-span-2 flex items-center gap-4">
                           <img
-                            src={user.profilePicture}
+                            src={getUserProfilePictureUrl(user.profilePicId)}
                             alt={user.name}
                             className="w-16 h-16 rounded-xl object-cover border-2 border-blue-100"
                           />
@@ -624,8 +650,8 @@ function Profile() {
                           onClick={() => picInputRef.current?.click()}
                         >
                           <div className="w-full h-full bg-blue-600 flex items-center justify-center text-white text-lg font-bold">
-                            {draftUser.profilePicture
-                              ? <img src={draftUser.profilePicture} alt="Preview" className="w-full h-full object-cover" />
+                            {draftUser.profilePicId
+                              ? <img src={getUserProfilePictureUrl(draftUser.profilePicId)} alt="Preview" className="w-full h-full object-cover" />
                               : initials
                             }
                           </div>
