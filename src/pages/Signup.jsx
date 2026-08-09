@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import axios from 'axios';
+import api from '../services/api';
 
 const Signup = () => {
     const [formData, setFormData] = useState({
@@ -23,11 +23,10 @@ const Signup = () => {
     const handleSubmit = (e) => {
         e.preventDefault();
         // Handle form submission logic here
-        axios.post('http://192.168.10.6:8080/users/register', formData, {
+        api.post('/users/register', formData, {
             headers: {
                 'Content-Type': 'application/json',
             },
-            withCredentials: true,
         })
         .then((response) => {
             console.log('Form submitted:', response.data);
