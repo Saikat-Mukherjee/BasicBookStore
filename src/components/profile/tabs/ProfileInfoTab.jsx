@@ -1,12 +1,13 @@
 import { useRef } from 'react';
+import PropTypes from 'prop-types';
 import { FaUser, FaEdit, FaCheck, FaTimes, FaCamera, FaTag } from 'react-icons/fa';
 import SectionTitle from '../SectionTitle';
 import InputField from '../InputField';
-import { GENRES } from '../constants';
 
 export default function ProfileInfoTab({
   user,
   draftUser,
+  genreOptions,
   editMode,
   savingProfile,
   onEnterEdit,
@@ -17,6 +18,7 @@ export default function ProfileInfoTab({
   getProfilePicUrl,
 }) {
   const picInputRef = useRef(null);
+  const resolvedProfilePic = getProfilePicUrl(user.profilePictureKey || user.profilePicId);
   const initials = user.name
     ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
     : 'JD';
@@ -40,10 +42,10 @@ export default function ProfileInfoTab({
 
       {!editMode ? (
         <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {user.profilePicId && (
+          {resolvedProfilePic && (
             <div className="bg-gray-50 rounded-xl p-4 sm:col-span-2 flex items-center gap-4">
               <img
-                src={getProfilePicUrl(user.profilePicId)}
+                src={resolvedProfilePic}
                 alt={user.name}
                 className="w-16 h-16 rounded-xl object-cover border-2 border-blue-100"
               />
@@ -91,8 +93,8 @@ export default function ProfileInfoTab({
               onClick={() => picInputRef.current?.click()}
             >
               <div className="w-full h-full bg-blue-600 flex items-center justify-center text-white text-lg font-bold">
-                {draftUser.profilePicId
-                  ? <img src={getProfilePicUrl(draftUser.profilePicId)} alt="Preview" className="w-full h-full object-cover" />
+                {draftUser.profilePicture
+                  ? <img src={draftUser.profilePicture} alt="Preview" className="w-full h-full object-cover" />
                   : initials
                 }
               </div>
@@ -115,7 +117,7 @@ export default function ProfileInfoTab({
                 {draftUser.profilePicture && (
                   <button
                     type="button"
-                    onClick={() => onDraftChange({ profilePicture: null })}
+                    onClick={() => onDraftChange({ profilePicture: null, imageFile: null })}
                     className="text-xs font-medium text-red-400 hover:text-red-600"
                   >
                     Remove
@@ -132,7 +134,7 @@ export default function ProfileInfoTab({
                 const file = e.target.files[0];
                 if (!file) return;
                 const reader = new FileReader();
-                reader.onload = (ev) => onDraftChange({ profilePicture: ev.target.result });
+                reader.onload = (ev) => onDraftChange({ profilePicture: ev.target.result, imageFile: file });
                 reader.readAsDataURL(file);
               }}
             />
@@ -168,13 +170,13 @@ export default function ProfileInfoTab({
               <span className="normal-case font-normal text-gray-400 ml-1">— select all that apply</span>
             </label>
             <div className="flex flex-wrap gap-2">
-              {GENRES.map(genre => (
+              {(genreOptions || []).map(genre => (
                 <button
                   key={genre}
                   type="button"
                   onClick={() => onTogglePreference(genre)}
                   className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-150
-                    ${draftUser.readingPreferences.includes(genre)
+                    ${(draftUser.readingPreferences || []).includes(genre)
                       ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
                       : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300 hover:text-blue-600'
                     }`}
@@ -183,9 +185,9 @@ export default function ProfileInfoTab({
                 </button>
               ))}
             </div>
-            {draftUser.readingPreferences.length > 0 && (
+            {(draftUser.readingPreferences || []).length > 0 && (
               <p className="text-xs text-gray-400 mt-2">
-                {draftUser.readingPreferences.length} genre{draftUser.readingPreferences.length !== 1 ? 's' : ''} selected
+                {(draftUser.readingPreferences || []).length} genre{(draftUser.readingPreferences || []).length !== 1 ? 's' : ''} selected
               </p>
             )}
           </div>
@@ -219,3 +221,37 @@ export default function ProfileInfoTab({
     </div>
   );
 }
+
+ProfileInfoTab.propTypes = {
+  user: PropTypes.shape({
+    name: PropTypes.string,
+    email: PropTypes.string,
+    phone: PropTypes.string,
+    memberSince: PropTypes.string,
+    dob: PropTypes.string,
+    profilePictureKey: PropTypes.string,
+    profilePicId: PropTypes.string,
+    readingPreferences: PropTypes.arrayOf(PropTypes.string),
+  }).isRequired,
+  draftUser: PropTypes.shape({
+    name: PropTypes.string,
+    email: PropTypes.string,
+    phone: PropTypes.string,
+    dob: PropTypes.string,
+    profilePicture: PropTypes.string,
+    readingPreferences: PropTypes.arrayOf(PropTypes.string),
+  }).isRequired,
+  genreOptions: PropTypes.arrayOf(PropTypes.string),
+  editMode: PropTypes.bool.isRequired,
+  savingProfile: PropTypes.bool.isRequired,
+  onEnterEdit: PropTypes.func.isRequired,
+  onSave: PropTypes.func.isRequired,
+  onCancel: PropTypes.func.isRequired,
+  onDraftChange: PropTypes.func.isRequired,
+  onTogglePreference: PropTypes.func.isRequired,
+  getProfilePicUrl: PropTypes.func.isRequired,
+};
+
+ProfileInfoTab.defaultProps = {
+  genreOptions: [],
+};
