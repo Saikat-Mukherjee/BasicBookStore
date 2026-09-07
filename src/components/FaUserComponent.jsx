@@ -1,12 +1,69 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import PropTypes from 'prop-types';
 import { useNavigate, Link } from 'react-router-dom';
 import { FaUser, FaCog, FaSignOutAlt, FaBox, FaHeart, FaQuestionCircle, FaChevronDown, FaUserShield } from 'react-icons/fa';
 import { logoutUser } from '../services/auth';
+import api from '../services/api';
+
+function extractPresignedUrl(payload) {
+    if (!payload) return null;
+    if (typeof payload === 'string') return payload;
+    return payload.url || payload.presignedUrl || payload.imageUrl || payload.signedUrl || null;
+}
 
 const FaUserComponent = ({ user, setUser }) => {
     const [dropdownOpen, setDropdownOpen] = useState(false);
+    const [profilePicUrl, setProfilePicUrl] = useState(null);
     const dropdownRef = useRef(null);
     const navigate = useNavigate();
+
+    useEffect(() => {
+        let isMounted = true;
+
+        async function fetchProfileImageUrl(profilePictureKey) {
+            if (!profilePictureKey) {
+                setProfilePicUrl(null);
+                return;
+            }
+
+            if (typeof profilePictureKey === 'string' && /^https?:\/\//i.test(profilePictureKey)) {
+                setProfilePicUrl(profilePictureKey);
+                return;
+            }
+
+            try {
+                const res = await api.get('/profile/image', {
+                    params: { profilePictureKey },
+                });
+                if (isMounted) {
+                    setProfilePicUrl(extractPresignedUrl(res.data));
+                }
+            } catch {
+                if (isMounted) {
+                    setProfilePicUrl(null);
+                }
+            }
+        }
+
+        async function fetchProfilePictureKey() {
+            const fallbackKey = user?.profilePictureKey || user?.profilePicId || null;
+
+            try {
+                const res = await api.get('/profile/view');
+                const data = res.data;
+                const profilePictureKey = data?.profilePictureKey || data?.profilePicId || fallbackKey;
+                await fetchProfileImageUrl(profilePictureKey);
+            } catch {
+                await fetchProfileImageUrl(fallbackKey);
+            }
+        }
+
+        fetchProfilePictureKey();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [user?.profilePicId, user?.profilePictureKey]);
 
     const toggleDropdown = () => {
         setDropdownOpen(!dropdownOpen);
@@ -39,8 +96,8 @@ const FaUserComponent = ({ user, setUser }) => {
                 className="flex items-center space-x-2 text-gray-700 hover:text-blue-600 focus:outline-none transition-colors"
             >
                 <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 border border-blue-200">
-                    {user?.avatar ? (
-                        <img src={user.avatar} alt="Profile" className="w-full h-full rounded-full object-cover" />
+                    {profilePicUrl ? (
+                        <img src={profilePicUrl} alt="Profile" className="w-full h-full rounded-full object-cover" />
                     ) : (
                         <span className="font-bold text-lg">{user?.username?.charAt(0).toUpperCase() || <FaUser />}</span>
                     )}
@@ -126,6 +183,16 @@ const FaUserComponent = ({ user, setUser }) => {
             )}
         </div>
     );
+};
+
+FaUserComponent.propTypes = {
+    user: PropTypes.shape({
+        username: PropTypes.string,
+        email: PropTypes.string,
+        profilePicId: PropTypes.string,
+        profilePictureKey: PropTypes.string,
+    }),
+    setUser: PropTypes.func.isRequired,
 };
 
 export default FaUserComponent;
