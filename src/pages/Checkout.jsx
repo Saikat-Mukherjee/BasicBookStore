@@ -1,11 +1,8 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
 import {
   FaMapMarkerAlt, FaHome, FaBriefcase, FaCreditCard,
   FaLock, FaCheck, FaChevronRight, FaChevronLeft,
-  FaShoppingBag, FaTruck, FaMoneyBillWave,
-  FaPaypal, FaWallet, FaUniversity, FaMobileAlt,
-  FaBitcoin, FaGift,
+  FaShoppingBag, FaTruck, FaWallet, FaStripe,
 } from 'react-icons/fa';
 import api from '../services/api';
 
@@ -27,67 +24,35 @@ const EMPTY_ADDR = {
 
 const TYPE_ICON = { Home: <FaHome />, Office: <FaBriefcase />, Other: <FaMapMarkerAlt /> };
 
-const CARD_BRANDS = {
-  visa:       { label: 'Visa',       color: '#1A1F71' },
-  mastercard: { label: 'Mastercard', color: '#EB001B' },
-  amex:       { label: 'Amex',       color: '#007BC1' },
-  discover:   { label: 'Discover',   color: '#FF6600' },
-};
-
+// Only these methods can be paid through Stripe Checkout on the backend.
+// Card details are entered on Stripe's hosted page, never in this app.
 const PAY_METHODS = [
-  { id: 'credit_card',    label: 'Credit Card',     icon: <FaCreditCard />,    color: 'text-blue-600' },
-  { id: 'debit_card',     label: 'Debit Card',       icon: <FaCreditCard />,    color: 'text-indigo-600' },
-  { id: 'upi',            label: 'UPI',              icon: <FaMobileAlt />,     color: 'text-green-600' },
-  { id: 'paypal',         label: 'PayPal',           icon: <FaPaypal />,        color: 'text-blue-500' },
-  { id: 'net_banking',    label: 'Net Banking',      icon: <FaUniversity />,    color: 'text-purple-600' },
-  { id: 'digital_wallet', label: 'Digital Wallet',   icon: <FaWallet />,        color: 'text-teal-600' },
-  { id: 'bank_transfer',  label: 'Bank Transfer',    icon: <FaUniversity />,    color: 'text-orange-600' },
-  { id: 'gift_card',      label: 'Gift Card',        icon: <FaGift />,          color: 'text-pink-600' },
-  { id: 'cryptocurrency', label: 'Crypto',           icon: <FaBitcoin />,       color: 'text-yellow-600' },
-  { id: 'cod',            label: 'Cash on Delivery', icon: <FaMoneyBillWave />, color: 'text-amber-600' },
+  { id: 'CREDIT_CARD',    label: 'Credit Card',    desc: 'Visa, Mastercard, Amex & more', icon: <FaCreditCard />, color: 'text-blue-600' },
+  { id: 'DEBIT_CARD',     label: 'Debit Card',     desc: 'Pay directly from your bank',   icon: <FaCreditCard />, color: 'text-indigo-600' },
+  { id: 'DIGITAL_WALLET', label: 'Digital Wallet', desc: 'Apple Pay, Google Pay & more',  icon: <FaWallet />,     color: 'text-teal-600' },
 ];
 
-const BANKS = [
-  'State Bank of India', 'HDFC Bank', 'ICICI Bank', 'Axis Bank',
-  'Kotak Mahindra Bank', 'Punjab National Bank', 'Bank of Baroda',
-  'Yes Bank', 'IndusInd Bank', 'Canara Bank', 'Union Bank of India',
-];
-
-const CRYPTO_COINS = [
-  { id: 'bitcoin',  label: 'Bitcoin (BTC)' },
-  { id: 'ethereum', label: 'Ethereum (ETH)' },
-  { id: 'usdt',     label: 'Tether (USDT)' },
-  { id: 'bnb',      label: 'BNB' },
-  { id: 'usdc',     label: 'USD Coin (USDC)' },
-];
+const PENDING_ORDER_KEY = 'pendingOrderId';
 
 /* ─────────────────────────────────────────
    Helpers
 ───────────────────────────────────────── */
-function detectBrand(num) {
-  const n = num.replace(/\s/g, '');
-  if (/^4/.test(n))            return 'visa';
-  if (/^5[1-5]/.test(n))       return 'mastercard';
-  if (/^3[47]/.test(n))        return 'amex';
-  if (/^6(?:011|5)/.test(n))   return 'discover';
-  return null;
+// crypto.randomUUID only exists in secure contexts (https / localhost),
+// so fall back when the dev server is opened over a LAN IP.
+function newIdempotencyKey() {
+  if (globalThis.crypto?.randomUUID) return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = (Math.random() * 16) | 0;
+    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+  });
 }
 
-function formatCardNumber(raw) {
-  const digits = raw.replace(/\D/g, '').slice(0, 16);
-  return digits.replace(/(.{4})/g, '$1 ').trim();
-}
-
-function formatExpiry(raw) {
-  const digits = raw.replace(/\D/g, '').slice(0, 4);
-  if (digits.length >= 3) return digits.slice(0, 2) + '/' + digits.slice(2);
-  return digits;
-}
-
-function maskCard(num) {
-  const d = num.replace(/\s/g, '');
-  if (d.length < 4) return '•••• •••• •••• ••••';
-  return '•••• •••• •••• ' + d.slice(-4);
+// The backend returns errors as plain text, not JSON.
+function apiErrorMessage(err, fallback) {
+  const data = err?.response?.data;
+  if (typeof data === 'string' && data.trim()) return data;
+  if (data?.message) return data.message;
+  return fallback;
 }
 
 /* ─────────────────────────────────────────
@@ -270,72 +235,6 @@ function NewAddressForm({ value, onChange }) {
   );
 }
 
-/* ───── Credit Card Visual ───── */
-function CardVisual({ num, name, expiry, flipped }) {
-  const brand = detectBrand(num);
-  return (
-    <div className="relative w-full max-w-xs mx-auto h-48 perspective-1000">
-      <div
-        className={`relative w-full h-full transition-transform duration-500`}
-        style={{ transformStyle: 'preserve-3d', transform: flipped ? 'rotateY(180deg)' : 'rotateY(0deg)' }}
-      >
-        {/* Front */}
-        <div
-          className="absolute inset-0 rounded-2xl p-6 flex flex-col justify-between shadow-xl"
-          style={{
-            backfaceVisibility: 'hidden',
-            background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)',
-          }}
-        >
-          <div className="flex justify-between items-start">
-            <div className="w-10 h-8 bg-yellow-300 rounded-md opacity-90" />
-            {brand && (
-              <span className="text-white text-sm font-bold opacity-80 tracking-wider">
-                {CARD_BRANDS[brand]?.label}
-              </span>
-            )}
-          </div>
-          <div>
-            <p className="text-white text-xl font-mono tracking-widest mb-4">
-              {num || '•••• •••• •••• ••••'}
-            </p>
-            <div className="flex justify-between items-end">
-              <div>
-                <p className="text-blue-200 text-xs uppercase tracking-wider mb-0.5">Card Holder</p>
-                <p className="text-white text-sm font-medium truncate max-w-[140px]">
-                  {name || 'YOUR NAME'}
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="text-blue-200 text-xs uppercase tracking-wider mb-0.5">Expires</p>
-                <p className="text-white text-sm font-medium">{expiry || 'MM/YY'}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Back */}
-        <div
-          className="absolute inset-0 rounded-2xl shadow-xl overflow-hidden"
-          style={{
-            backfaceVisibility: 'hidden',
-            transform: 'rotateY(180deg)',
-            background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)',
-          }}
-        >
-          <div className="w-full h-14 bg-gray-800 mt-6" />
-          <div className="px-6 mt-4">
-            <p className="text-blue-200 text-xs uppercase tracking-wider mb-1">CVV</p>
-            <div className="bg-white rounded px-3 py-2 text-right text-gray-800 font-mono text-sm tracking-widest">
-              •••
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 /* ───── Order Summary sidebar / review ───── */
 function OrderSummary({ items, subtotal, shipping, total, compact = false }) {
   return (
@@ -381,7 +280,6 @@ function OrderSummary({ items, subtotal, shipping, total, compact = false }) {
    MAIN CHECKOUT PAGE
 ═══════════════════════════════════════════ */
 export default function Checkout() {
-  const navigate = useNavigate();
   const [step, setStep] = useState(1);
 
   /* ── cart data ── */
@@ -390,42 +288,38 @@ export default function Checkout() {
   const [shippingCost, setShippingCost] = useState(0);
   const [total,        setTotal]        = useState(0);
   const [loadingCart,  setLoadingCart]  = useState(true);
+  const [loadError,    setLoadError]    = useState('');
+  const [cartId,       setCartId]       = useState(null);
+  const [userId,       setUserId]       = useState(null);
 
   /* ── shipping ── */
   const [savedAddresses,   setSavedAddresses]   = useState([]);
   const [selectedAddress,  setSelectedAddress]  = useState(null);
   const [addingNew,        setAddingNew]        = useState(false);
   const [newAddress,       setNewAddress]       = useState({ ...EMPTY_ADDR });
-  const [shippingMethod,   setShippingMethod]   = useState('standard');
 
   /* ── payment ── */
-  const [payMethod, setPayMethod] = useState('credit_card');
-  const [payDetails, setPayDetails] = useState({
-    // card fields (credit & debit)
-    number: '', name: '', expiry: '', cvv: '',
-    // other methods
-    upiId: '', paypalEmail: '', bankName: '',
-    walletId: '', accountNumber: '', routingNumber: '',
-    cryptoCoin: 'bitcoin', giftCardCode: '',
-  });
-  const [cvvFocused, setCvvFocused] = useState(false);
-  const setPay = (field, val) => setPayDetails(p => ({ ...p, [field]: val }));
+  const [payMethod,         setPayMethod]         = useState('CREDIT_CARD');
+  const [savePaymentMethod, setSavePaymentMethod] = useState(false);
+  const [notes,             setNotes]             = useState('');
 
   /* ── order ── */
-  const [placing,  setPlacing]  = useState(false);
-  const [placed,   setPlaced]   = useState(false);
-  const [orderId,  setOrderId]  = useState('');
-  const [errors,   setErrors]   = useState({});
-  const [cartId,   setCartId]   = useState(null);
+  const [placing, setPlacing] = useState(false);
+  const [errors,  setErrors]  = useState({});
+  // One idempotency key per checkout attempt; reused on retries so the
+  // backend returns the existing order instead of creating a duplicate.
+  const attemptRef = useRef({ signature: null, key: null });
 
   /* ── fetch ── */
   useEffect(() => {
     async function load() {
       setLoadingCart(true);
+      setLoadError('');
       try {
-        const [cartRes, addrRes] = await Promise.all([
+        const [cartRes, addrRes, profileRes] = await Promise.all([
           api.get('/cart/all'),
           api.get('/address/all'),
+          api.get('/users/profile'),
         ]);
         const d = cartRes.data;
         setCartItems(d.items ?? []);
@@ -434,13 +328,15 @@ export default function Checkout() {
         setTotal(d.totalAmount ?? 0);
         setCartId(d.cartId ?? null);
 
+        const profile = profileRes.data;
+        setUserId(profile?.id ?? profile?.userId ?? d.userId ?? null);
 
         const addrs = Array.isArray(addrRes.data) ? addrRes.data : [];
         setSavedAddresses(addrs);
         const def = addrs.find(a => a.isDefault) ?? addrs[0];
         if (def) setSelectedAddress(def);
-      } catch {
-        /* keep defaults */
+      } catch (err) {
+        setLoadError(apiErrorMessage(err, 'Failed to load your cart. Please try again.'));
       } finally {
         setLoadingCart(false);
       }
@@ -448,14 +344,9 @@ export default function Checkout() {
     load();
   }, []);
 
-  /* ── shipping method totals ── */
-  const shippingOptions = [
-    { id: 'standard', label: 'Standard Shipping', desc: '5–7 business days', price: shippingCost },
-    { id: 'express',  label: 'Express Shipping',  desc: '2–3 business days', price: shippingCost + 4.99 },
-    { id: 'overnight',label: 'Overnight',         desc: '1 business day',    price: shippingCost + 12.99 },
-  ];
-  const selectedShipping = shippingOptions.find(o => o.id === shippingMethod) ?? shippingOptions[0];
-  const finalTotal = subtotal + selectedShipping.price;
+  // The amount Stripe charges is computed by the backend from the cart.
+  const finalTotal = total || subtotal + shippingCost;
+  const isCard = payMethod === 'CREDIT_CARD' || payMethod === 'DEBIT_CARD';
 
   /* ── validation ── */
   function validateStep(s) {
@@ -474,30 +365,7 @@ export default function Checkout() {
       }
     }
     if (s === 2) {
-      const isCard = payMethod === 'credit_card' || payMethod === 'debit_card';
-      if (isCard) {
-        const num = payDetails.number.replace(/\s/g, '');
-        if (num.length < 13)                 errs.cardNumber = 'Enter a valid card number.';
-        if (!payDetails.name.trim())         errs.cardName   = 'Enter the name on your card.';
-        if (payDetails.expiry.length < 5)    errs.expiry     = 'Enter a valid expiry date.';
-        if (payDetails.cvv.length < 3)       errs.cvv        = 'Enter a valid CVV.';
-      } else if (payMethod === 'upi') {
-        if (!payDetails.upiId.trim() || !payDetails.upiId.includes('@'))
-          errs.upiId = 'Enter a valid UPI ID (e.g. name@upi).';
-      } else if (payMethod === 'paypal') {
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payDetails.paypalEmail.trim()))
-          errs.paypalEmail = 'Enter a valid PayPal email address.';
-      } else if (payMethod === 'net_banking') {
-        if (!payDetails.bankName) errs.bankName = 'Please select your bank.';
-      } else if (payMethod === 'digital_wallet') {
-        if (!payDetails.walletId.trim()) errs.walletId = 'Enter your wallet phone number or email.';
-      } else if (payMethod === 'bank_transfer') {
-        if (!payDetails.accountNumber.trim()) errs.accountNumber = 'Enter your account number.';
-        if (!payDetails.routingNumber.trim()) errs.routingNumber = 'Enter the routing / IFSC code.';
-      } else if (payMethod === 'gift_card') {
-        if (!payDetails.giftCardCode.trim()) errs.giftCardCode = 'Enter a valid gift card code.';
-      }
-      // cryptocurrency and cod require no extra input
+      if (!PAY_METHODS.some(m => m.id === payMethod)) errs.payMethod = 'Please choose a payment method.';
     }
     setErrors(errs);
     return Object.keys(errs).length === 0;
@@ -516,91 +384,65 @@ export default function Checkout() {
   /* ── save new address to API ── */
   async function resolveAddress() {
     if (!addingNew) return selectedAddress;
-    try {
-      const res = await api.post('/address', newAddress);
-      return res.data?.id ? res.data : { ...newAddress, id: Date.now() };
-    } catch {
-      return { ...newAddress, id: Date.now() };
-    }
+    const res = await api.post('/address', newAddress);
+    if (!res.data?.id) throw new Error('Could not save your shipping address.');
+    // Switch to the saved address so a retry doesn't create it again.
+    setSavedAddresses(prev => [...prev, res.data]);
+    setSelectedAddress(res.data);
+    setAddingNew(false);
+    return res.data;
   }
 
-  /* ── place order ── */
+  function idempotencyKeyFor(signature) {
+    if (attemptRef.current.signature !== signature) {
+      attemptRef.current = { signature, key: newIdempotencyKey() };
+    }
+    return attemptRef.current.key;
+  }
+
+  /* ── place order and hand off to Stripe Checkout ── */
   async function placeOrder() {
     if (!validateStep(2)) { setStep(2); return; }
+    if (!cartId || cartItems.length === 0) {
+      setErrors({ submit: 'Your cart is empty.' });
+      return;
+    }
+    if (!userId) {
+      setErrors({ submit: 'Could not load your account. Please refresh and try again.' });
+      return;
+    }
     setPlacing(true);
+    setErrors({});
     try {
       const addr = await resolveAddress();
-      const isCard = payMethod === 'credit_card' || payMethod === 'debit_card';
+      const orderItems = cartItems.map(item => ({
+        bookId:    item.bookId,
+        quantity:  item.quantity,
+        unitPrice: item.unitPrice,
+      }));
+      const trimmedNotes = notes.trim();
+      const signature = JSON.stringify([addr.id, payMethod, savePaymentMethod, trimmedNotes, orderItems]);
       const payload = {
-       // addressId:      addr.id,
-       shippingAddressId: addr.id,
-        shippingMethod: shippingMethod,
-        cartId:         cartId,
-        paymentMethod:  payMethod.toUpperCase(),
-        ...(isCard && { cardLast4: payDetails.number.replace(/\s/g, '').slice(-4) }),
-        ...(payMethod === 'upi'            && { upiId:         payDetails.upiId }),
-        ...(payMethod === 'paypal'         && { paypalEmail:   payDetails.paypalEmail }),
-        ...(payMethod === 'net_banking'    && { bankName:      payDetails.bankName }),
-        ...(payMethod === 'digital_wallet' && { walletId:      payDetails.walletId }),
-        ...(payMethod === 'bank_transfer'  && {
-          accountNumber: payDetails.accountNumber,
-          routingNumber: payDetails.routingNumber,
-        }),
-        ...(payMethod === 'cryptocurrency' && { cryptoCoin:    payDetails.cryptoCoin }),
-        ...(payMethod === 'gift_card'      && { giftCardCode:  payDetails.giftCardCode }),
+        userId,
+        shippingAddressId: addr.id,
+        orderItems,
+        paymentMethod:     payMethod,
+        ...(trimmedNotes && { notes: trimmedNotes }),
+        idempotencyKey:    idempotencyKeyFor(signature),
+        savePaymentMethod: isCard && savePaymentMethod,
+        clearCart:         true,
       };
-      console.log('Placing order with payload:', payload);
-      //const res = await api.post('/orders/place', payload);
-      const res = await api.post(`/api/orders/from-cart/${cartId}`, payload);
-      setOrderId(res.data?.orderId ?? res.data?.id ?? `ORD-${Date.now()}`);
-    } catch {
-      setOrderId(`ORD-${Date.now()}`);
+      const { data: order } = await api.post(`/api/orders/from-cart/${cartId}`, payload);
+      if (!order?.stripeCheckoutSessionUrl) {
+        throw new Error('Payment could not be started. Please try again.');
+      }
+      // The success page reads this to look the order up after Stripe redirects back.
+      sessionStorage.setItem(PENDING_ORDER_KEY, String(order.id));
+      window.location.href = order.stripeCheckoutSessionUrl;
+    } catch (err) {
+      setErrors({ submit: apiErrorMessage(err, err?.message || 'Something went wrong. Please try again.') });
+      setPlacing(false);
     }
-    setPlacing(false);
-    setPlaced(true);
-  }
-
-  /* ─────────────────────────────────────────
-     ORDER SUCCESS SCREEN
-  ───────────────────────────────────────── */
-  if (placed) {
-    return (
-      <div className="min-h-[70vh] flex items-center justify-center px-4">
-        <div className="max-w-md w-full text-center">
-          <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6 animate-bounce-once">
-            <FaCheck className="text-green-600 text-3xl" />
-          </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Order Placed!</h2>
-          <p className="text-gray-500 mb-1">Thank you for your purchase.</p>
-          <p className="text-sm text-gray-400 mb-6">
-            Order <span className="font-semibold text-gray-700">{orderId}</span> has been confirmed.
-          </p>
-          <div className="bg-gray-50 rounded-2xl p-5 border border-gray-100 mb-6 text-left">
-            <OrderSummary
-              items={cartItems}
-              subtotal={subtotal}
-              shipping={selectedShipping.price}
-              total={finalTotal}
-              compact
-            />
-          </div>
-          <div className="flex gap-3 justify-center">
-            <button
-              onClick={() => navigate('/orders')}
-              className="px-6 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
-            >
-              View Orders
-            </button>
-            <button
-              onClick={() => navigate('/')}
-              className="px-6 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
-            >
-              Continue Shopping
-            </button>
-          </div>
-        </div>
-      </div>
-    );
   }
 
   /* ─────────────────────────────────────────
@@ -620,9 +462,21 @@ export default function Checkout() {
     );
   }
 
+  if (loadError) {
+    return (
+      <div className="min-h-[50vh] flex items-center justify-center px-4">
+        <div className="max-w-md w-full bg-red-50 border border-red-300 text-red-700 text-sm px-4 py-3 rounded-lg">
+          {loadError}
+        </div>
+      </div>
+    );
+  }
+
   /* ─────────────────────────────────────────
      MAIN LAYOUT
   ───────────────────────────────────────── */
+  const selectedPay = PAY_METHODS.find(m => m.id === payMethod);
+
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
       {/* Page title */}
@@ -696,37 +550,17 @@ export default function Checkout() {
                   </p>
                 )}
 
-                {/* Shipping method */}
+                {/* Delivery */}
                 <div className="mt-6">
-                  <h3 className="text-sm font-semibold text-gray-700 mb-3">Delivery Method</h3>
-                  <div className="space-y-2">
-                    {shippingOptions.map(opt => (
-                      <label
-                        key={opt.id}
-                        className={`flex items-center justify-between p-3.5 rounded-xl border cursor-pointer transition-all
-                          ${shippingMethod === opt.id
-                            ? 'border-blue-500 bg-blue-50/40'
-                            : 'border-gray-200 hover:border-blue-200'
-                          }`}
-                      >
-                        <div className="flex items-start gap-3">
-                          <input
-                            type="radio"
-                            name="shipping"
-                            checked={shippingMethod === opt.id}
-                            onChange={() => setShippingMethod(opt.id)}
-                            className="mt-0.5 accent-blue-600"
-                          />
-                          <div>
-                            <p className="text-sm font-medium text-gray-800">{opt.label}</p>
-                            <p className="text-xs text-gray-400">{opt.desc}</p>
-                          </div>
-                        </div>
-                        <span className={`text-sm font-semibold ${opt.price === 0 ? 'text-green-600' : 'text-gray-700'}`}>
-                          {opt.price === 0 ? 'Free' : `$${opt.price.toFixed(2)}`}
-                        </span>
-                      </label>
-                    ))}
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3">Delivery</h3>
+                  <div className="flex items-center justify-between p-3.5 rounded-xl border border-blue-500 bg-blue-50/40">
+                    <div>
+                      <p className="text-sm font-medium text-gray-800">Standard Shipping</p>
+                      <p className="text-xs text-gray-400">5–7 business days</p>
+                    </div>
+                    <span className={`text-sm font-semibold ${shippingCost === 0 ? 'text-green-600' : 'text-gray-700'}`}>
+                      {shippingCost === 0 ? 'Free' : `$${shippingCost.toFixed(2)}`}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -740,7 +574,7 @@ export default function Checkout() {
                 </h2>
 
                 {/* Method grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-6">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-6">
                   {PAY_METHODS.map(m => (
                     <button
                       key={m.id}
@@ -756,238 +590,45 @@ export default function Checkout() {
                         {m.icon}
                       </span>
                       {m.label}
+                      <span className="text-[11px] font-normal text-gray-400 text-center">{m.desc}</span>
                     </button>
                   ))}
                 </div>
+                {errors.payMethod && <p className="text-xs text-red-500 -mt-4 mb-4">{errors.payMethod}</p>}
 
-                {/* ── Credit / Debit Card ── */}
-                {(payMethod === 'credit_card' || payMethod === 'debit_card') && (
-                  <div className="space-y-6">
-                    <CardVisual
-                      num={payDetails.number}
-                      name={payDetails.name}
-                      expiry={payDetails.expiry}
-                      flipped={cvvFocused}
+                <div className="flex items-start gap-3 bg-indigo-50 border border-indigo-100 rounded-xl p-3">
+                  <FaStripe className="text-indigo-500 text-3xl shrink-0 -my-1" />
+                  <p className="text-xs text-indigo-700 leading-relaxed">
+                    After you review your order, you’ll be redirected to Stripe’s secure payment page
+                    to enter your {isCard ? 'card' : 'wallet'} details. We never see or store them.
+                  </p>
+                </div>
+
+                {isCard && (
+                  <label className="flex items-center gap-2 cursor-pointer select-none mt-4">
+                    <input
+                      type="checkbox"
+                      checked={savePaymentMethod}
+                      onChange={e => setSavePaymentMethod(e.target.checked)}
+                      className="w-4 h-4 accent-blue-600 rounded"
                     />
-                    <div className="space-y-3">
-                      <Field label="Card Number" required>
-                        <TextInput
-                          value={payDetails.number}
-                          onChange={e => setPay('number', formatCardNumber(e.target.value))}
-                          placeholder="1234 5678 9012 3456"
-                          maxLength={19}
-                          className={errors.cardNumber ? 'border-red-300 focus:border-red-400 focus:ring-red-50' : ''}
-                        />
-                        {errors.cardNumber && <p className="text-xs text-red-500 mt-1">{errors.cardNumber}</p>}
-                      </Field>
-                      <Field label="Name on Card" required>
-                        <TextInput
-                          value={payDetails.name}
-                          onChange={e => setPay('name', e.target.value)}
-                          placeholder="Jane Doe"
-                          className={errors.cardName ? 'border-red-300 focus:border-red-400 focus:ring-red-50' : ''}
-                        />
-                        {errors.cardName && <p className="text-xs text-red-500 mt-1">{errors.cardName}</p>}
-                      </Field>
-                      <div className="grid grid-cols-2 gap-3">
-                        <Field label="Expiry Date" required>
-                          <TextInput
-                            value={payDetails.expiry}
-                            onChange={e => setPay('expiry', formatExpiry(e.target.value))}
-                            placeholder="MM/YY"
-                            maxLength={5}
-                            className={errors.expiry ? 'border-red-300 focus:border-red-400 focus:ring-red-50' : ''}
-                          />
-                          {errors.expiry && <p className="text-xs text-red-500 mt-1">{errors.expiry}</p>}
-                        </Field>
-                        <Field label="CVV" required>
-                          <TextInput
-                            type="password"
-                            value={payDetails.cvv}
-                            onChange={e => setPay('cvv', e.target.value.replace(/\D/g, '').slice(0, 4))}
-                            placeholder="•••"
-                            maxLength={4}
-                            className={errors.cvv ? 'border-red-300 focus:border-red-400 focus:ring-red-50' : ''}
-                            onFocus={() => setCvvFocused(true)}
-                            onBlur={() => setCvvFocused(false)}
-                          />
-                          {errors.cvv && <p className="text-xs text-red-500 mt-1">{errors.cvv}</p>}
-                        </Field>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs text-gray-400 bg-gray-50 rounded-lg px-3 py-2">
-                      <FaLock className="text-gray-300" />
-                      Your card details are encrypted end-to-end and never stored.
-                    </div>
-                  </div>
+                    <span className="text-sm text-gray-600">Save this card for future purchases</span>
+                  </label>
                 )}
 
-                {/* ── UPI ── */}
-                {payMethod === 'upi' && (
-                  <div className="space-y-3">
-                    <Field label="UPI ID" required>
-                      <TextInput
-                        value={payDetails.upiId}
-                        onChange={e => setPay('upiId', e.target.value)}
-                        placeholder="yourname@upi"
-                        className={errors.upiId ? 'border-red-300 focus:border-red-400 focus:ring-red-50' : ''}
-                      />
-                      {errors.upiId && <p className="text-xs text-red-500 mt-1">{errors.upiId}</p>}
-                    </Field>
-                    <p className="text-xs text-gray-400">
-                      Enter your UPI ID (e.g. phone@okaxis, name@paytm, user@ybl)
-                    </p>
-                  </div>
-                )}
-
-                {/* ── PayPal ── */}
-                {payMethod === 'paypal' && (
-                  <div className="space-y-3">
-                    <Field label="PayPal Email" required>
-                      <TextInput
-                        value={payDetails.paypalEmail}
-                        onChange={e => setPay('paypalEmail', e.target.value)}
-                        placeholder="you@example.com"
-                        className={errors.paypalEmail ? 'border-red-300 focus:border-red-400 focus:ring-red-50' : ''}
-                      />
-                      {errors.paypalEmail && <p className="text-xs text-red-500 mt-1">{errors.paypalEmail}</p>}
-                    </Field>
-                    <div className="flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-xl p-3">
-                      <FaPaypal className="text-blue-500 text-xl shrink-0 mt-0.5" />
-                      <p className="text-xs text-blue-700 leading-relaxed">
-                        You will be redirected to PayPal to securely complete your payment after placing the order.
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {/* ── Net Banking ── */}
-                {payMethod === 'net_banking' && (
-                  <div className="space-y-3">
-                    <Field label="Select Bank" required>
-                      <select
-                        value={payDetails.bankName}
-                        onChange={e => setPay('bankName', e.target.value)}
-                        className={`border rounded-lg px-3 py-2.5 text-sm text-gray-800 bg-white
-                          focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 transition-all
-                          ${errors.bankName ? 'border-red-300' : 'border-gray-200'}`}
-                      >
-                        <option value="">— Choose your bank —</option>
-                        {BANKS.map(b => <option key={b} value={b}>{b}</option>)}
-                      </select>
-                      {errors.bankName && <p className="text-xs text-red-500 mt-1">{errors.bankName}</p>}
-                    </Field>
-                    <div className="flex items-start gap-3 bg-purple-50 border border-purple-100 rounded-xl p-3">
-                      <FaUniversity className="text-purple-500 text-xl shrink-0 mt-0.5" />
-                      <p className="text-xs text-purple-700 leading-relaxed">
-                        You will be redirected to your bank's secure portal to complete the payment.
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {/* ── Digital Wallet ── */}
-                {payMethod === 'digital_wallet' && (
-                  <div className="space-y-3">
-                    <Field label="Wallet Phone / Email" required>
-                      <TextInput
-                        value={payDetails.walletId}
-                        onChange={e => setPay('walletId', e.target.value)}
-                        placeholder="+1 555 000 0000 or wallet@email.com"
-                        className={errors.walletId ? 'border-red-300 focus:border-red-400 focus:ring-red-50' : ''}
-                      />
-                      {errors.walletId && <p className="text-xs text-red-500 mt-1">{errors.walletId}</p>}
-                    </Field>
-                    <p className="text-xs text-gray-400">
-                      Supports Paytm, Google Pay, PhonePe, Apple Pay, and other digital wallets.
-                    </p>
-                  </div>
-                )}
-
-                {/* ── Bank Transfer ── */}
-                {payMethod === 'bank_transfer' && (
-                  <div className="space-y-3">
-                    <Field label="Account Number" required>
-                      <TextInput
-                        value={payDetails.accountNumber}
-                        onChange={e => setPay('accountNumber', e.target.value.replace(/\D/g, ''))}
-                        placeholder="Enter your account number"
-                        className={errors.accountNumber ? 'border-red-300 focus:border-red-400 focus:ring-red-50' : ''}
-                      />
-                      {errors.accountNumber && <p className="text-xs text-red-500 mt-1">{errors.accountNumber}</p>}
-                    </Field>
-                    <Field label="Routing / IFSC Code" required>
-                      <TextInput
-                        value={payDetails.routingNumber}
-                        onChange={e => setPay('routingNumber', e.target.value.toUpperCase())}
-                        placeholder="e.g. SBIN0001234"
-                        className={errors.routingNumber ? 'border-red-300 focus:border-red-400 focus:ring-red-50' : ''}
-                      />
-                      {errors.routingNumber && <p className="text-xs text-red-500 mt-1">{errors.routingNumber}</p>}
-                    </Field>
-                    <div className="flex items-center gap-2 text-xs text-gray-400 bg-gray-50 rounded-lg px-3 py-2">
-                      <FaLock className="text-gray-300" />
-                      Your bank details are transmitted over a secure encrypted connection.
-                    </div>
-                  </div>
-                )}
-
-                {/* ── Cryptocurrency ── */}
-                {payMethod === 'cryptocurrency' && (
-                  <div className="space-y-3">
-                    <Field label="Select Cryptocurrency" required>
-                      <select
-                        value={payDetails.cryptoCoin}
-                        onChange={e => setPay('cryptoCoin', e.target.value)}
-                        className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 bg-white
-                          focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 transition-all"
-                      >
-                        {CRYPTO_COINS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
-                      </select>
-                    </Field>
-                    <div className="flex items-start gap-3 bg-yellow-50 border border-yellow-100 rounded-xl p-3">
-                      <FaBitcoin className="text-yellow-500 text-xl shrink-0 mt-0.5" />
-                      <p className="text-xs text-yellow-700 leading-relaxed">
-                        A wallet address will be provided after order confirmation. Payment must be completed within 30 minutes.
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {/* ── Gift Card ── */}
-                {payMethod === 'gift_card' && (
-                  <div className="space-y-3">
-                    <Field label="Gift Card Code" required>
-                      <TextInput
-                        value={payDetails.giftCardCode}
-                        onChange={e => setPay('giftCardCode', e.target.value.toUpperCase())}
-                        placeholder="XXXX-XXXX-XXXX-XXXX"
-                        className={errors.giftCardCode ? 'border-red-300 focus:border-red-400 focus:ring-red-50' : ''}
-                      />
-                      {errors.giftCardCode && <p className="text-xs text-red-500 mt-1">{errors.giftCardCode}</p>}
-                    </Field>
-                    <div className="flex items-start gap-3 bg-pink-50 border border-pink-100 rounded-xl p-3">
-                      <FaGift className="text-pink-500 text-xl shrink-0 mt-0.5" />
-                      <p className="text-xs text-pink-700 leading-relaxed">
-                        Enter the code printed on the back of your gift card. Balance will be applied at checkout.
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {/* ── Cash on Delivery ── */}
-                {payMethod === 'cod' && (
-                  <div className="flex items-start gap-4 bg-amber-50 border border-amber-100 rounded-xl p-4">
-                    <FaMoneyBillWave className="text-amber-500 text-xl shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-sm font-semibold text-amber-800">Cash on Delivery</p>
-                      <p className="text-xs text-amber-600 mt-1 leading-relaxed">
-                        Pay in cash when your order is delivered. Please keep exact change ready.
-                        A small handling fee of $1.99 may apply.
-                      </p>
-                    </div>
-                  </div>
-                )}
+                <div className="mt-5">
+                  <Field label="Order notes">
+                    <textarea
+                      value={notes}
+                      onChange={e => setNotes(e.target.value)}
+                      maxLength={1000}
+                      rows={3}
+                      placeholder="Anything we should know about your order? (optional)"
+                      className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 resize-none
+                        focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 transition-all"
+                    />
+                  </Field>
+                </div>
               </div>
             )}
 
@@ -1023,9 +664,9 @@ export default function Checkout() {
                     );
                   })()}
                   <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between text-sm">
-                    <span className="text-gray-500">{selectedShipping.label}</span>
+                    <span className="text-gray-500">Standard Shipping</span>
                     <span className="font-medium text-gray-700">
-                      {selectedShipping.price === 0 ? 'Free' : `$${selectedShipping.price.toFixed(2)}`}
+                      {shippingCost === 0 ? 'Free' : `$${shippingCost.toFixed(2)}`}
                     </span>
                   </div>
                 </div>
@@ -1043,60 +684,22 @@ export default function Checkout() {
                       Change
                     </button>
                   </div>
-                  {(() => {
-                    const m = PAY_METHODS.find(x => x.id === payMethod);
-                    const isCard = payMethod === 'credit_card' || payMethod === 'debit_card';
-                    return (
-                      <div className="flex items-center gap-3">
-                        <div className={`w-10 h-7 rounded-lg flex items-center justify-center text-base
-                          ${isCard ? 'bg-gray-800 text-white' : 'bg-gray-100'}`}>
-                          <span className={isCard ? 'text-white' : m?.color}>{m?.icon}</span>
-                        </div>
-                        <div>
-                          {isCard && (
-                            <>
-                              <p className="text-sm font-medium text-gray-800">{maskCard(payDetails.number)}</p>
-                              {detectBrand(payDetails.number) && (
-                                <p className="text-xs text-gray-400 capitalize">
-                                  {CARD_BRANDS[detectBrand(payDetails.number)]?.label} · {payMethod === 'credit_card' ? 'Credit' : 'Debit'}
-                                </p>
-                              )}
-                            </>
-                          )}
-                          {payMethod === 'upi' && (
-                            <p className="text-sm font-medium text-gray-800">{payDetails.upiId || 'UPI'}</p>
-                          )}
-                          {payMethod === 'paypal' && (
-                            <p className="text-sm font-medium text-gray-800">{payDetails.paypalEmail || 'PayPal'}</p>
-                          )}
-                          {payMethod === 'net_banking' && (
-                            <p className="text-sm font-medium text-gray-800">{payDetails.bankName || 'Net Banking'}</p>
-                          )}
-                          {payMethod === 'digital_wallet' && (
-                            <p className="text-sm font-medium text-gray-800">{payDetails.walletId || 'Digital Wallet'}</p>
-                          )}
-                          {payMethod === 'bank_transfer' && (
-                            <p className="text-sm font-medium text-gray-800">
-                              ••••{payDetails.accountNumber.slice(-4) || '——'} · Bank Transfer
-                            </p>
-                          )}
-                          {payMethod === 'cryptocurrency' && (
-                            <p className="text-sm font-medium text-gray-800">
-                              {CRYPTO_COINS.find(c => c.id === payDetails.cryptoCoin)?.label ?? 'Cryptocurrency'}
-                            </p>
-                          )}
-                          {payMethod === 'gift_card' && (
-                            <p className="text-sm font-medium text-gray-800">
-                              Gift Card ····{payDetails.giftCardCode.slice(-4) || '——'}
-                            </p>
-                          )}
-                          {payMethod === 'cod' && (
-                            <p className="text-sm font-medium text-gray-800">Cash on Delivery</p>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })()}
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-7 rounded-lg flex items-center justify-center text-base bg-gray-100">
+                      <span className={selectedPay?.color}>{selectedPay?.icon}</span>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-800">{selectedPay?.label}</p>
+                      <p className="text-xs text-gray-400">
+                        Paid securely on Stripe{isCard && savePaymentMethod ? ' · card will be saved' : ''}
+                      </p>
+                    </div>
+                  </div>
+                  {notes.trim() && (
+                    <p className="mt-3 pt-3 border-t border-gray-100 text-sm text-gray-600 whitespace-pre-line">
+                      {notes.trim()}
+                    </p>
+                  )}
                 </div>
 
                 {/* Items */}
@@ -1107,11 +710,17 @@ export default function Checkout() {
                   <OrderSummary
                     items={cartItems}
                     subtotal={subtotal}
-                    shipping={selectedShipping.price}
+                    shipping={shippingCost}
                     total={finalTotal}
                     compact
                   />
                 </div>
+
+                {errors.submit && (
+                  <div className="bg-red-50 border border-red-300 text-red-700 text-sm px-4 py-3 rounded-lg">
+                    {errors.submit}
+                  </div>
+                )}
 
                 {/* Terms */}
                 <p className="text-xs text-gray-400 text-center leading-relaxed px-4">
@@ -1128,8 +737,9 @@ export default function Checkout() {
               {step > 1 && (
                 <button
                   onClick={back}
+                  disabled={placing}
                   className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-gray-200
-                    text-gray-600 text-sm font-medium hover:bg-gray-50 transition-colors"
+                    text-gray-600 text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-60"
                 >
                   <FaChevronLeft className="text-xs" /> Back
                 </button>
@@ -1145,7 +755,7 @@ export default function Checkout() {
               ) : (
                 <button
                   onClick={placeOrder}
-                  disabled={placing}
+                  disabled={placing || cartItems.length === 0}
                   className="flex items-center gap-2 px-8 py-2.5 bg-blue-600 text-white rounded-xl
                     text-sm font-semibold hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-60"
                 >
@@ -1155,10 +765,10 @@ export default function Checkout() {
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                       </svg>
-                      Placing Order…
+                      Redirecting to Stripe…
                     </>
                   ) : (
-                    <><FaLock className="text-xs" /> Place Order – ${finalTotal.toFixed(2)}</>
+                    <><FaLock className="text-xs" /> Pay ${finalTotal.toFixed(2)}</>
                   )}
                 </button>
               )}
@@ -1172,12 +782,12 @@ export default function Checkout() {
             <OrderSummary
               items={cartItems}
               subtotal={subtotal}
-              shipping={selectedShipping.price}
+              shipping={shippingCost}
               total={finalTotal}
             />
             <div className="mt-3 flex items-center gap-2 text-xs text-gray-400 justify-center">
               <FaLock className="text-gray-300" />
-              Secure SSL Encrypted Checkout
+              Payments processed securely by Stripe
             </div>
           </div>
         </div>
